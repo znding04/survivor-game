@@ -453,6 +453,24 @@ function createEnemy() {
   shadow.position.y = 0.02;
   group.add(shadow);
 
+  // HP bar above enemy
+  const hpBarBg = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.7, 0.08),
+    new THREE.MeshBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.6 })
+  );
+  hpBarBg.position.set(0, 1.0, 0);
+  hpBarBg.lookAt(camera.position);
+  group.add(hpBarBg);
+
+  const hpBarFill = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.68, 0.06),
+    new THREE.MeshBasicMaterial({ color: 0xff6b9d })
+  );
+  hpBarFill.position.set(0, 1.0, 0.001);
+  group.add(hpBarFill);
+  group.userData.hpBarFill = hpBarFill;
+  group.userData.hpBarBg = hpBarBg;
+
   // Spawn from edges
   const angle = Math.random() * Math.PI * 2;
   const dist = 25 + Math.random() * 10;
@@ -507,6 +525,29 @@ function spawnParticles(pos, color, count = 8) {
     scene.add(p);
     G.particles.push(p);
   }
+}
+
+function spawnDamageNumber(pos, damage) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'bold 48px Nunito, sans-serif';
+  ctx.fillStyle = '#ffd54f';
+  ctx.strokeStyle = '#4a2040';
+  ctx.lineWidth = 4;
+  ctx.textAlign = 'center';
+  ctx.strokeText(Math.round(damage), 64, 48);
+  ctx.fillText(Math.round(damage), 64, 48);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(pos);
+  sprite.position.y += 1.2;
+  sprite.scale.set(1.2, 0.6, 1);
+  sprite.userData = { vy: 2.5, life: 0.8 };
+  scene.add(sprite);
+  G.particles.push(sprite);
 }
 
 function spawnHeartParticle(pos) {
@@ -664,6 +705,7 @@ function update(dt) {
       if (d <= G.atkRange) {
         enemy.userData.hp -= G.atkDamage;
         hit = true;
+        spawnDamageNumber(enemy.position, G.atkDamage);
         // Flash white briefly
         enemy.children.forEach(c => {
           if (c.material && c.material.color) {
@@ -717,6 +759,20 @@ function update(dt) {
     // Bob
     enemy.userData.bobTime += dt * 4;
     enemy.position.y = Math.sin(enemy.userData.bobTime) * 0.06;
+
+    // Update HP bar
+    if (enemy.userData.hpBarFill) {
+      const hpPct = Math.max(0, enemy.userData.hp / enemy.userData.maxHp);
+      enemy.userData.hpBarFill.scale.x = hpPct;
+      enemy.userData.hpBarFill.position.x = -(1 - hpPct) * 0.34;
+      // Billboard HP bars toward camera
+      enemy.userData.hpBarBg.quaternion.copy(camera.quaternion);
+      enemy.userData.hpBarFill.quaternion.copy(camera.quaternion);
+      // Color based on HP
+      if (hpPct < 0.3) enemy.userData.hpBarFill.material.color.setHex(0xff4444);
+      else if (hpPct < 0.6) enemy.userData.hpBarFill.material.color.setHex(0xffab40);
+      else enemy.userData.hpBarFill.material.color.setHex(0xff6b9d);
+    }
 
     // Damage player on contact
     const d = G.player.position.distanceTo(enemy.position);
