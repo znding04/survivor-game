@@ -86,10 +86,27 @@
       padding: 28px 24px; width: 180px; text-align: center; cursor: pointer;
       transition: transform .2s, border-color .2s, box-shadow .2s; pointer-events: auto;
     }
-    .upgrade-card:hover { transform: scale(1.08); border-color: #ffd54f; box-shadow: 0 0 24px rgba(255,213,79,.3); }
+    .upgrade-card:hover { transform: scale(1.08) rotate(-2deg); border-color: #ffd54f; box-shadow: 0 0 24px rgba(255,213,79,.3); }
     .upgrade-card .icon { font-size: 40px; margin-bottom: 10px; }
     .upgrade-card .name { font-size: 18px; font-weight: 900; color: #fff; margin-bottom: 6px; }
     .upgrade-card .desc { font-size: 13px; color: #b0bec5; }
+
+    @keyframes cardPop {
+      0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+      70% { transform: scale(1.1) rotate(2deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .upgrade-card { animation: cardPop .4s ease-out backwards; }
+    .upgrade-card:nth-child(1) { animation-delay: .05s; }
+    .upgrade-card:nth-child(2) { animation-delay: .15s; }
+    .upgrade-card:nth-child(3) { animation-delay: .25s; }
+
+    @keyframes levelUpBanner {
+      0% { transform: scale(0.3) rotate(-5deg); opacity: 0; }
+      60% { transform: scale(1.1) rotate(1deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    #upgrade-screen h2 { animation: levelUpBanner .5s ease-out; }
   </style>
 </head>
 <body>
@@ -494,15 +511,26 @@ function createEnemy() {
    XP GEM
    ═══════════════════════════════════════════ */
 function createGem(pos) {
+  const group = new THREE.Group();
+
   const geo = new THREE.OctahedronGeometry(0.18, 0);
   const mat = new THREE.MeshLambertMaterial({ color: 0x64ffda, emissive: 0x64ffda, emissiveIntensity: 0.3 });
-  const gem = new THREE.Mesh(geo, mat);
-  gem.position.copy(pos);
-  gem.position.y = 0.5;
-  gem.userData = { bobTime: Math.random() * Math.PI * 2, attracted: false };
-  gem.castShadow = true;
-  scene.add(gem);
-  G.gems.push(gem);
+  const crystal = new THREE.Mesh(geo, mat);
+  crystal.castShadow = true;
+  group.add(crystal);
+
+  // Glow ring
+  const ringGeo = new THREE.RingGeometry(0.2, 0.35, 16);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x64ffda, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  group.add(ring);
+
+  group.position.copy(pos);
+  group.position.y = 0.5;
+  group.userData = { bobTime: Math.random() * Math.PI * 2, attracted: false, crystal, ring };
+  scene.add(group);
+  G.gems.push(group);
 }
 
 /* ═══════════════════════════════════════════
@@ -799,7 +827,15 @@ function update(dt) {
     const gem = G.gems[i];
     gem.userData.bobTime += dt * 3;
     gem.position.y = 0.5 + Math.sin(gem.userData.bobTime) * 0.15;
-    gem.rotation.y += dt * 2;
+    if (gem.userData.crystal) {
+      gem.userData.crystal.rotation.y += dt * 3;
+      gem.userData.crystal.rotation.x += dt * 1.5;
+    }
+    if (gem.userData.ring) {
+      gem.userData.ring.material.opacity = 0.15 + Math.sin(gem.userData.bobTime * 2) * 0.1;
+      const rs = 1 + Math.sin(gem.userData.bobTime * 2) * 0.15;
+      gem.userData.ring.scale.setScalar(rs);
+    }
 
     const d = G.player.position.distanceTo(gem.position);
     // Attract when close
@@ -826,7 +862,10 @@ function update(dt) {
         G.level++;
         G.xpToNext = Math.floor(G.xpToNext * 1.5);
         showUpgradeScreen();
-        spawnHeartParticle(G.player.position);
+        // Celebration burst
+        for (let j = 0; j < 5; j++) spawnHeartParticle(G.player.position);
+        spawnParticles(G.player.position, 0xffd54f, 12);
+        spawnParticles(G.player.position, 0xff6b9d, 8);
       }
     }
   }
