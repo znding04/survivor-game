@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES } from './config.js';
+import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE } from './config.js';
 
 // Phones get lighter settings (fewer pixels, smaller shadows, less foliage).
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
@@ -37,7 +37,7 @@ function makePool(factory) {
 export const engine = {
   scene: null, camera: null, renderer: null, planet: null, player: null,
 
-  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [] },
+  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [] },
   _ambient: [],
 
   /* ── Setup ──────────────────────────────────────────── */
@@ -153,6 +153,7 @@ export const engine = {
     this._pools.damage = makePool(() => { const v = makeDamageSprite(); this.scene.add(v); v.visible = false; return v; });
     this._pools.pulse = makePool(() => { const v = makePulseRing(); this.scene.add(v); v.visible = false; return v; });
     this._pools.star = makePool(() => { const v = makeOrbitStar(); this.scene.add(v); v.visible = false; return v; });
+    this._pools.magnetLine = makePool(() => { const v = makeMagnetLine(); this.scene.add(v); v.visible = false; return v; });
   },
 
   spawnEnemyView(tmplIndex) {
@@ -208,6 +209,15 @@ export const engine = {
     this._fx.pulses.push(r);
   },
 
+  /* ── Damage flash (red vignette) ─────────────────────── */
+  flashDamage() {
+    const el = document.getElementById('damage-flash');
+    if (!el) return;
+    el.style.opacity = '1';
+    clearTimeout(this._flashTimeout);
+    this._flashTimeout = setTimeout(() => { el.style.opacity = '0'; }, 100);
+  },
+
   /* ── Scene reset between runs ────────────────────────── */
   clearEntities(state) {
     for (const e of state.enemies) this.despawnEnemyView(e.view);
@@ -217,8 +227,10 @@ export const engine = {
     for (const d of this._fx.damage) this._pools.damage.release(d);
     for (const pu of this._fx.pulses) this._pools.pulse.release(pu);
     for (const st of this._fx.stars) this._pools.star.release(st);
+    for (const ml of this._fx.magnetLines) this._pools.magnetLine.release(ml);
     this._fx.particles.length = 0; this._fx.damage.length = 0;
     this._fx.pulses.length = 0; this._fx.stars.length = 0;
+    this._fx.magnetLines.length = 0;
   },
 
   /* ── Camera angle (0 = low/cinematic, 1 = top-down) ──── */
@@ -319,6 +331,11 @@ export const engine = {
   },
 
   _syncGems(state) {
+    // Release all magnet lines from previous frame
+    for (const ml of this._fx.magnetLines) this._pools.magnetLine.release(ml);
+    this._fx.magnetLines.length = 0;
+
+    const playerWorld = _face.set(0, PLANET_R, 0); // player is always at the pole
     for (const g of state.gems) {
       const v = g.view;
       v.position.copy(g.localDir).multiplyScalar(PLANET_R);
@@ -328,6 +345,17 @@ export const engine = {
       ud.crystal.rotation.y += 0.05; ud.crystal.rotation.x += 0.025;
       ud.ring.material.opacity = 0.15 + Math.sin(g.bobTime * 2) * 0.1;
       ud.ring.scale.setScalar(1 + Math.sin(g.bobTime * 2) * 0.15);
+
+      // Magnet line for attracted gems
+      if (g.attracted && this._fx.magnetLines.length < MAGNET_LINE.poolSize) {
+        const gemWorld = g.localDir.clone().multiplyScalar(PLANET_R).applyQuaternion(state.planetQuat);
+        const line = this._pools.magnetLine.acquire();
+        const positions = line.geometry.attributes.position;
+        positions.setXYZ(0, gemWorld.x, gemWorld.y, gemWorld.z);
+        positions.setXYZ(1, playerWorld.x, playerWorld.y, playerWorld.z);
+        positions.needsUpdate = true;
+        this._fx.magnetLines.push(line);
+      }
     }
   },
 
@@ -562,6 +590,14 @@ function makeOrbitStar() {
     new THREE.MeshBasicMaterial({ color: 0xfff176, transparent: true, opacity: 0.25 }));
   g.add(glow);
   return g;
+}
+
+function makeMagnetLine() {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+  return new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color: MAGNET_LINE.color, transparent: true, opacity: MAGNET_LINE.opacity,
+  }));
 }
 
 function makeParticle() {

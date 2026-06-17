@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES,
+  PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO,
 } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -67,6 +67,12 @@ export function update(state, dt, engine, move) {
   // ── Regen ──
   if (state.regen) state.hp = Math.min(state.maxHp, state.hp + state.regen * dt);
 
+  // ── Combo decay ──
+  if (state.comboTimer > 0) {
+    state.comboTimer -= dt;
+    if (state.comboTimer <= 0) { state.combo = 0; state.comboMultiplier = 1; }
+  }
+
   // ── Difficulty (derived from time, not stored) ──
   const t = state.time;
   const spawnInterval = Math.max(DIFFICULTY.spawnIntervalMin,
@@ -108,12 +114,16 @@ export function update(state, dt, engine, move) {
     if (surfDist < 1.0) {
       state.hp -= DIFFICULTY.contactDps * dt;
       state.shake = 0.3;
+      engine.flashDamage();
       slerpToward(e.localDir, target, -(2 / PLANET_R) * dt); // push back
     }
 
     if (e.hp <= 0) {
       e.dying = true; e.deathTimer = 0.35;
       state.kills++;
+      state.combo++;
+      state.comboTimer = COMBO.window;
+      state.comboMultiplier = 1 + Math.floor(state.combo / COMBO.killsPerTier) * COMBO.tierBonus;
       const w = worldPos(e.localDir, state);
       engine.spawnParticles(w, 0xffd54f, 10);
       engine.spawnParticles(w, 0xffb3d9, 6);
@@ -249,6 +259,7 @@ function stepHoming(state, dt, engine, target) {
 
 /* ═══ Progression ═════════════════════════════════════════════ */
 function gainXp(state, engine, amount) {
+  amount *= state.comboMultiplier;
   engine.spawnParticles(_pole.set(0, PLANET_R, 0), 0x64ffda, 4);
   state.xp += amount;
   if (state.xp >= state.xpToNext) {

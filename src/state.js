@@ -53,6 +53,11 @@ export function createState() {
     gems: [],
     projectiles: [],
 
+    // Combo
+    combo: 0,
+    comboTimer: 0,
+    comboMultiplier: 1,
+
     // Transient feedback
     shake: 0,
   };

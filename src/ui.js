@@ -59,6 +59,17 @@ export const ui = {
     $('hp-label').textContent = `HP  ${Math.ceil(state.hp)} / ${state.maxHp}`;
     document.querySelector('#xp-bar .bar-fill').style.width = (state.xp / state.xpToNext * 100) + '%';
     $('xp-label').textContent = `XP — Lv ${state.level}`;
+    const comboEl = $('hud-combo');
+    if (state.combo > 1) {
+      comboEl.textContent = `${state.combo}x combo!`;
+      comboEl.style.display = 'block';
+      if (!comboEl.classList.contains('combo-pulse')) {
+        comboEl.classList.add('combo-pulse');
+        setTimeout(() => comboEl.classList.remove('combo-pulse'), 200);
+      }
+    } else {
+      comboEl.style.display = 'none';
+    }
   },
 
   // Rebuild the loadout panel (weapons first, then passive upgrades).

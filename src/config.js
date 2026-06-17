@@ -85,6 +85,18 @@ export const LEVEL = {
   gemValue: 1,
 };
 
+export const COMBO = {
+  window: 2.0,          // seconds between kills to keep combo alive
+  killsPerTier: 5,      // every N kills adds +0.5x multiplier
+  tierBonus: 0.5,       // multiplier bonus per tier
+};
+
+export const MAGNET_LINE = {
+  poolSize: 10,
+  color: 0x64ffda,
+  opacity: 0.35,
+};
+
 /* ── Upgrade pool ───────────────────────────────────────────────
    Each upgrade is data + small pure mutators on state. `available`
    lets weapon unlocks/level-ups appear contextually. */

@@ -15,6 +15,22 @@
     }
     canvas { display: block; touch-action: none; }
 
+    /* ─── Combo counter ─── */
+    #hud-combo {
+      display: none; font-size: 28px; font-weight: 900; color: #ffd54f;
+      text-shadow: 0 2px 8px rgba(255,213,79,.6), 0 0 16px rgba(255,213,79,.3);
+      margin-bottom: 4px; transition: transform .15s ease;
+    }
+    @keyframes comboPulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
+    #hud-combo.combo-pulse { animation: comboPulse .2s ease-out; }
+
+    /* ─── Damage flash ─── */
+    #damage-flash {
+      position: fixed; inset: 0; pointer-events: none; z-index: 8;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(255,0,0,0.45) 100%);
+      opacity: 0; transition: opacity 0.4s ease;
+    }
+
     /* ─── HUD ─── */
     #hud {
       position: fixed; top: 0; left: 0; width: 100%;
@@ -235,6 +251,7 @@
 <div id="hud">
   <div id="hud-top">
     <div id="hud-left">
+      <div id="hud-combo"></div>
       <div id="hp-label">HP</div>
       <div class="bar-wrap" id="hp-bar"><div class="bar-fill" style="width:100%"></div></div>
       <div id="xp-label">XP — Lv 1</div>
@@ -278,6 +295,8 @@
   <div id="high-score-msg">New High Score!</div>
   <button class="btn btn-mint" id="restart-btn">Play Again</button>
 </div>
+
+<div id="damage-flash"></div>
 
 <script type="importmap">
 {
