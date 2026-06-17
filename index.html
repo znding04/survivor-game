@@ -107,6 +107,17 @@
       100% { transform: scale(1) rotate(0deg); opacity: 1; }
     }
     #upgrade-screen h2 { animation: levelUpBanner .5s ease-out; }
+
+    @keyframes fadeSlideIn {
+      0% { transform: translateY(30px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    #start-screen h1 { animation: levelUpBanner .6s ease-out; }
+    #start-screen p { animation: fadeSlideIn .6s ease-out .2s backwards; }
+    #start-screen .btn { animation: cardPop .5s ease-out .4s backwards; }
+
+    #gameover-screen h1 { animation: levelUpBanner .5s ease-out; }
+    #gameover-screen .btn { animation: cardPop .5s ease-out .3s backwards; }
   </style>
 </head>
 <body>
@@ -115,7 +126,9 @@
 <div id="start-screen">
   <h1>Cute Survivors!</h1>
   <p>Survive the adorable onslaught!</p>
+  <div id="start-highscore" style="color:#7c4dff;font-size:16px;margin-bottom:20px;"></div>
   <button class="btn btn-pink" id="start-btn">Play!</button>
+  <p style="font-size:13px;color:#b39ddb;margin-top:16px;">WASD to move &bull; Auto-attack &bull; ESC to pause</p>
 </div>
 
 <!-- HUD -->
@@ -1018,15 +1031,19 @@ function gameOver() {
   const min = Math.floor(G.time / 60).toString().padStart(2, '0');
   const sec = Math.floor(G.time % 60).toString().padStart(2, '0');
 
+  const bestMin = Math.floor(Math.max(G.time, prevTime) / 60).toString().padStart(2, '0');
+  const bestSec = Math.floor(Math.max(G.time, prevTime) % 60).toString().padStart(2, '0');
   document.getElementById('gameover-stats').innerHTML = `
     Survived: <span>${min}:${sec}</span><br>
     Kills: <span>${G.kills}</span><br>
     Level: <span>${G.level}</span><br>
-    Best Kills: <span>${Math.max(score, prevBest)}</span>
+    Best Kills: <span>${Math.max(score, prevBest)}</span><br>
+    Best Time: <span>${bestMin}:${bestSec}</span>
   `;
   document.getElementById('high-score-msg').style.display = isNew ? 'block' : 'none';
   document.getElementById('gameover-screen').style.display = 'flex';
   document.getElementById('hud').style.display = 'none';
+  updateStartScreenHighScore();
 }
 
 function togglePause() {
@@ -1052,6 +1069,19 @@ window.addEventListener('resize', () => {
 
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
+
+// Show previous high score on start screen
+function updateStartScreenHighScore() {
+  const hs = parseInt(localStorage.getItem('survivor-highscore') || '0');
+  const bt = parseFloat(localStorage.getItem('survivor-besttime') || '0');
+  const el = document.getElementById('start-highscore');
+  if (hs > 0) {
+    const min = Math.floor(bt / 60).toString().padStart(2, '0');
+    const sec = Math.floor(bt % 60).toString().padStart(2, '0');
+    el.textContent = `Best: ${hs} kills — ${min}:${sec} survived`;
+  }
+}
+updateStartScreenHighScore();
 
 /* ═══════════════════════════════════════════
    INIT & RENDER LOOP
