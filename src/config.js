@@ -79,6 +79,18 @@ export const DIFFICULTY = {
   spawnAngMax: 0.95,
 };
 
+export const BOSS = {
+  interval: 90,              // seconds between boss spawns
+  hpMult: 10,               // HP multiplier vs normal enemy
+  scale: 3,                  // visual size multiplier
+  speedMult: 0.7,           // 30% slower than normal enemies
+  gemValueMult: 10,         // XP gem value multiplier
+  deathParticlesGold: 30,
+  deathParticlesPink: 20,
+};
+
+export const WEAPON_SWITCH_KEYS = ['Digit1', 'Digit2', 'Digit3'];
+
 export const LEVEL = {
   xpToNextStart: 10,
   xpGrowth: 1.5,

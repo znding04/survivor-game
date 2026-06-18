@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE } from './config.js';
+import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS } from './config.js';
 
 // Phones get lighter settings (fewer pixels, smaller shadows, less foliage).
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
@@ -156,14 +156,34 @@ export const engine = {
     this._pools.magnetLine = makePool(() => { const v = makeMagnetLine(); this.scene.add(v); v.visible = false; return v; });
   },
 
-  spawnEnemyView(tmplIndex) {
+  spawnEnemyView(tmplIndex, isBoss = false) {
     const v = this._pools.enemy.acquire();
     applyEnemyTemplate(v, ENEMY_TEMPLATES[tmplIndex]);
-    v.scale.setScalar(1);
+    v.scale.setScalar(isBoss ? BOSS.scale : 1);
+    v.userData.isBoss = isBoss;
+    // Boss label
+    if (isBoss) {
+      if (!v.userData.bossLabel) {
+        const label = makeBossLabel();
+        v.add(label);
+        v.userData.bossLabel = label;
+      }
+      v.userData.bossLabel.visible = true;
+    } else if (v.userData.bossLabel) {
+      v.userData.bossLabel.visible = false;
+    }
     return v;
   },
-  despawnEnemyView(v) { this._pools.enemy.release(v); },
-  spawnGemView() { const v = this._pools.gem.acquire(); v.scale.setScalar(1); return v; },
+  despawnEnemyView(v) {
+    if (v.userData.bossLabel) v.userData.bossLabel.visible = false;
+    v.userData.isBoss = false;
+    this._pools.enemy.release(v);
+  },
+  spawnGemView(big = false) {
+    const v = this._pools.gem.acquire();
+    v.scale.setScalar(big ? 2.5 : 1);
+    return v;
+  },
   despawnGemView(v) { this._pools.gem.release(v); },
   spawnProjectileView() { const v = this._pools.proj.acquire(); return v; },
   despawnProjectileView(v) { this._pools.proj.release(v); },
@@ -307,10 +327,11 @@ export const engine = {
       v.position.addScaledVector(e.localDir, Math.sin(e.bobTime) * 0.06);
 
       // squish recovery
+      const baseScale = e.boss ? BOSS.scale : 1;
       if (e.hitTimer > 0) {
         const sq = 1 + e.hitTimer * 2;
-        v.scale.set(sq, 1 / (sq * 0.5 + 0.5), sq);
-      } else v.scale.setScalar(1);
+        v.scale.set(baseScale * sq, baseScale / (sq * 0.5 + 0.5), baseScale * sq);
+      } else v.scale.setScalar(baseScale);
 
       // hit flash (timer-driven — pause-safe, no setTimeout)
       const flash = e.hitFlash > 0;
@@ -610,6 +631,21 @@ function makePulseRing() {
     new THREE.MeshBasicMaterial({ color: 0xff6b9d, transparent: true, opacity: 0.4, side: THREE.DoubleSide }));
   r.rotation.x = -Math.PI / 2;
   return r;
+}
+
+function makeBossLabel() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 48;
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'bold 36px Nunito, sans-serif';
+  ctx.fillStyle = '#ffd54f'; ctx.strokeStyle = '#4a2040'; ctx.lineWidth = 4;
+  ctx.textAlign = 'center';
+  ctx.strokeText('BOSS', 64, 36); ctx.fillText('BOSS', 64, 36);
+  const tex = new THREE.CanvasTexture(canvas);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  s.scale.set(1.8, 0.7, 1);
+  s.position.set(0, 1.6, 0);
+  return s;
 }
 
 function makeDamageSprite() {

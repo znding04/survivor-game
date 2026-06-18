@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO,
+  PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO, BOSS,
 } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -89,10 +89,19 @@ export function update(state, dt, engine, move) {
     for (let i = 0; i < count; i++) spawnEnemy(state, engine, enemySpeed, hpScale);
   }
 
-  // ── Weapons (apply damage before the AI loop catches deaths) ──
-  stepPulse(state, dt, engine, target);
-  stepOrbit(state, dt, engine, target);
-  stepHoming(state, dt, engine, target);
+  // ── Boss spawn ──
+  state.bossTimer -= dt;
+  if (state.bossTimer <= 0) {
+    state.bossTimer = BOSS.interval;
+    spawnBoss(state, engine, enemySpeed, hpScale);
+  }
+
+  // ── Weapons (only fire the active one; inactive timers freeze) ──
+  const active = state.activeWeaponId;
+  if (active === 'pulse') stepPulse(state, dt, engine, target);
+  if (active === 'orbit') stepOrbit(state, dt, engine, target);
+  else state.orbitStars.length = 0; // hide stars when orbit is inactive
+  if (active === 'homing') stepHoming(state, dt, engine, target);
 
   // ── Enemy AI ──
   for (let i = state.enemies.length - 1; i >= 0; i--) {
@@ -120,14 +129,21 @@ export function update(state, dt, engine, move) {
 
     if (e.hp <= 0) {
       e.dying = true; e.deathTimer = 0.35;
-      state.kills++;
-      state.combo++;
-      state.comboTimer = COMBO.window;
-      state.comboMultiplier = 1 + Math.floor(state.combo / COMBO.killsPerTier) * COMBO.tierBonus;
       const w = worldPos(e.localDir, state);
-      engine.spawnParticles(w, 0xffd54f, 10);
-      engine.spawnParticles(w, 0xffb3d9, 6);
-      spawnGem(state, engine, e.localDir);
+      if (e.boss) {
+        state.bossKills++;
+        engine.spawnParticles(w, 0xffd54f, BOSS.deathParticlesGold);
+        engine.spawnParticles(w, 0xffb3d9, BOSS.deathParticlesPink);
+        spawnGem(state, engine, e.localDir, BOSS.gemValueMult);
+      } else {
+        state.kills++;
+        state.combo++;
+        state.comboTimer = COMBO.window;
+        state.comboMultiplier = 1 + Math.floor(state.combo / COMBO.killsPerTier) * COMBO.tierBonus;
+        engine.spawnParticles(w, 0xffd54f, 10);
+        engine.spawnParticles(w, 0xffb3d9, 6);
+        spawnGem(state, engine, e.localDir);
+      }
     }
   }
 
@@ -166,13 +182,36 @@ function spawnEnemy(state, engine, speed, hpScale) {
   });
 }
 
-function spawnGem(state, engine, localDir) {
+function spawnBoss(state, engine, speed, hpScale) {
+  const tmplIndex = Math.floor(Math.random() * ENEMY_TEMPLATES.length);
+  const tmpl = ENEMY_TEMPLATES[tmplIndex];
+  const ang = DIFFICULTY.spawnAngMin + Math.random() * (DIFFICULTY.spawnAngMax - DIFFICULTY.spawnAngMin);
+  const localDir = state.targetLocal.clone().applyAxisAngle(randomPerp(state.targetLocal), ang).normalize();
+  const hp = DIFFICULTY.enemyHpBase * tmpl.hpMult * hpScale * BOSS.hpMult;
+  const enemy = {
+    localDir,
+    hp, maxHp: hp,
+    speed: speed * BOSS.speedMult,
+    bobTime: Math.random() * Math.PI * 2,
+    dying: false, deathTimer: 0, hitTimer: 0, hitFlash: 0,
+    boss: true,
+    view: engine.spawnEnemyView(tmplIndex, true),
+  };
+  state.enemies.push(enemy);
+  // Dramatic spawn burst
+  const w = worldPos(localDir, state);
+  engine.spawnParticles(w, 0xffd54f, 30);
+  engine.spawnParticles(w, 0xff6b9d, 20);
+}
+
+function spawnGem(state, engine, localDir, valueMult = 1) {
+  const big = valueMult > 1;
   state.gems.push({
     localDir: localDir.clone(),
-    value: LEVEL.gemValue,
+    value: LEVEL.gemValue * valueMult,
     bobTime: Math.random() * Math.PI * 2,
     attracted: false,
-    view: engine.spawnGemView(),
+    view: engine.spawnGemView(big),
   });
 }
 

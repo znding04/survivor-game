@@ -1,4 +1,4 @@
-import { STARTING_WEAPONS, UPGRADES } from './config.js';
+import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING } from './config.js';
 
 // id -> {icon, name} for the loadout panel; weapon ids get a gold border.
 const UP_META = Object.fromEntries(UPGRADES.map(u => [u.id, { icon: u.icon, name: u.name }]));
@@ -17,6 +17,24 @@ const fmtTime = (t) => {
   return `${m}:${s}`;
 };
 
+const WEAPON_TOOLTIPS = {
+  pulse: {
+    desc: 'Unleash a shockwave that blasts all nearby foes. Scales with range and damage upgrades.',
+    stats: `Damage: ${PULSE.damage} | Range: ${PULSE.range} | Cooldown: ${PULSE.cooldown}s`,
+    path: 'Unlocks: +Damage, +Range, +Speed',
+  },
+  orbit: {
+    desc: 'Diamond stars orbit you, shredding any enemy in their path. More stars = more coverage.',
+    stats: `DPS: ${ORBIT.dps} | Stars: ${ORBIT.baseCount} | Radius: ${ORBIT.radius}`,
+    path: 'Unlocks: +Stars, +Damage',
+  },
+  homing: {
+    desc: 'Fire seeking hearts that chase down the nearest enemy. Multiple hearts = multi-target.',
+    stats: `Damage: ${HOMING.damage} | Speed: ${HOMING.speed} | Cooldown: ${HOMING.cooldown}s`,
+    path: 'Unlocks: +Hearts, +Fire Rate',
+  },
+};
+
 export const ui = {
   selectedWeapon: STARTING_WEAPONS[0].id,
 
@@ -24,6 +42,7 @@ export const ui = {
     $('start-btn').addEventListener('click', onStart);
     $('restart-btn').addEventListener('click', onStart);
     this._buildWeaponPicker();
+    this._buildWeaponSwitcher();
     this._initCamSlider(engine);
     this.refreshHighScore();
   },
@@ -32,16 +51,55 @@ export const ui = {
     const opts = $('weapon-options');
     opts.innerHTML = '';
     for (const w of STARTING_WEAPONS) {
+      const tip = WEAPON_TOOLTIPS[w.id];
       const card = document.createElement('div');
       card.className = 'weapon-card' + (w.id === this.selectedWeapon ? ' selected' : '');
       card.dataset.weapon = w.id;
       card.innerHTML =
-        `<div class="wicon">${w.icon}</div><div class="wname">${w.name}</div><div class="wdesc">${w.desc}</div>`;
+        `<div class="wicon">${w.icon}</div><div class="wname">${w.name}</div><div class="wdesc">${w.desc}</div>` +
+        `<div class="wtooltip"><div class="wtt-desc">${tip.desc}</div>` +
+        `<div class="wtt-stats">${tip.stats}</div>` +
+        `<div class="wtt-path">${tip.path}</div></div>`;
       card.onclick = () => {
         this.selectedWeapon = w.id;
         for (const el of opts.children) el.classList.toggle('selected', el.dataset.weapon === w.id);
       };
       opts.appendChild(card);
+    }
+  },
+
+  _buildWeaponSwitcher() {
+    const wrap = $('weapon-switcher');
+    if (!wrap) return;
+    const icons = { pulse: '🌀', orbit: '✨', homing: '💘' };
+    wrap.innerHTML = '';
+    for (const w of STARTING_WEAPONS) {
+      const btn = document.createElement('button');
+      btn.className = 'ws-btn';
+      btn.dataset.weapon = w.id;
+      btn.textContent = icons[w.id];
+      btn.title = w.name;
+      wrap.appendChild(btn);
+    }
+  },
+
+  switchWeapon(id, state) {
+    const weaponIds = ['pulse', 'orbit', 'homing'];
+    if (!weaponIds.includes(id)) return;
+    if (state[id].level <= 0) return; // not owned
+    state.activeWeaponId = id;
+    this.updateWeaponSwitcher(state);
+  },
+
+  updateWeaponSwitcher(state) {
+    const wrap = $('weapon-switcher');
+    if (!wrap) return;
+    for (const btn of wrap.children) {
+      const wid = btn.dataset.weapon;
+      const owned = state[wid].level > 0;
+      btn.classList.toggle('ws-active', wid === state.activeWeaponId);
+      btn.classList.toggle('ws-owned', owned);
+      btn.disabled = !owned;
     }
   },
 
@@ -82,7 +140,8 @@ export const ui = {
       const meta = UP_META[id];
       if (!meta) continue;
       const chip = document.createElement('div');
-      chip.className = 'lo-chip' + (WEAPON_IDS.has(id) ? ' lo-weapon' : '');
+      const isActive = WEAPON_IDS.has(id) && id === state.activeWeaponId;
+      chip.className = 'lo-chip' + (WEAPON_IDS.has(id) ? ' lo-weapon' : '') + (isActive ? ' lo-active' : '');
       chip.innerHTML =
         `<span class="lo-ic">${meta.icon}</span>` +
         `<span class="lo-nm">${meta.name}</span>` +

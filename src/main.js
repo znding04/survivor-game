@@ -4,6 +4,7 @@ import { ui } from './ui.js';
 import { input } from './input.js';
 import { createState, resetState } from './state.js';
 import { update, pickUpgradeChoices, applyUpgrade } from './logic.js';
+import { WEAPON_SWITCH_KEYS } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
    MAIN — wires the front-end (engine, ui, input) to the back-end
@@ -21,17 +22,30 @@ input.init({
 });
 if (input.isTouch) document.body.classList.add('touch');
 
+const WEAPON_ORDER = ['pulse', 'orbit', 'homing'];
+
 function startGame() {
   engine.clearEntities(state);
   resetState(state);
   state[ui.selectedWeapon].level = 1;        // chosen starting weapon
   state.upgrades[ui.selectedWeapon] = 1;     // show it in the loadout
+  state.activeWeaponId = ui.selectedWeapon;  // start with chosen weapon active
   engine.createPlayer();
   ui.enterGame(input.isTouch);
   ui.updateLoadout(state);
+  ui.updateWeaponSwitcher(state);
   input.reset();
   clock.getDelta(); // drop the idle delta
 }
+
+// Weapon switch via number keys 1/2/3
+window.addEventListener('keydown', (e) => {
+  if (!state.running || state.paused || state.upgrading) return;
+  const idx = WEAPON_SWITCH_KEYS.indexOf(e.code);
+  if (idx >= 0) {
+    ui.switchWeapon(WEAPON_ORDER[idx], state);
+  }
+});
 
 function togglePause() {
   if (!state.running || state.upgrading) return;
@@ -46,6 +60,7 @@ function levelUp() {
   ui.showUpgrades(pickUpgradeChoices(state), state, (up) => {
     applyUpgrade(state, up);
     ui.updateLoadout(state);
+    ui.updateWeaponSwitcher(state);
     state.upgrading = false;
     clock.getDelta();
   });
