@@ -141,10 +141,11 @@ export function update(state, dt, engine, move) {
       e.fireTimer -= dt;
       if (e.fireTimer <= 0) {
         e.fireTimer = SPITTER.fireInterval;
+        const aimDir = target.clone(); // direction toward player
         state.spitterProjectiles.push({
           localDir: e.localDir.clone(),
-          moveDir: e.localDir.clone(), // fixed at spawn — no tracking
-          tangent: e.localDir.clone().cross(UP).normalize(), // rotation axis for movement
+          moveDir: aimDir, // aimed at player at moment of fire
+          tangent: e.localDir.clone().cross(aimDir).cross(e.localDir).normalize(), // movement tangent toward player
           damage: SPITTER.projectileDamage,
           speed: SPITTER.projectileSpeed,
           life: SPITTER.projectileLife,
