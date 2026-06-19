@@ -73,7 +73,7 @@ export const SPITTER = {
   eye: 0x880e4f,
   blush: 0xce93d8,
   hpMult: 0.7,          // slightly squishier than average
-  speedMult: 1.0,       // same speed as normal enemies
+  speedMult: 0.5,       // slower than normal enemies (ranged should be kitable)
   range: 8,             // surface units — tries to keep this distance
   preferredAng: 0.7,    // radians from player (spawn angle range)
   fireInterval: 2.5,    // seconds between shots
