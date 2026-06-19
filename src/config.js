@@ -65,7 +65,23 @@ export const ENEMY_TEMPLATES = [
   { color: 0x80deea, eye: 0x006064, blush: 0x4dd0e1, hpMult: 1.2 },  // Blue blob
   { color: 0xa5d6a7, eye: 0x1b5e20, blush: 0x81c784, hpMult: 0.8 },  // Green blob
   { color: 0xffcc80, eye: 0xe65100, blush: 0xffab91, hpMult: 1.5 },  // Orange blob
+  { color: 0xf06292, eye: 0x880e4f, blush: 0xce93d8, hpMult: 0.7 },  // Pink spitter
 ];
+
+export const SPITTER = {
+  color: 0xf06292,      // pink/magenta
+  eye: 0x880e4f,
+  blush: 0xce93d8,
+  hpMult: 0.7,          // slightly squishier than average
+  speedMult: 0.5,       // slower (needs range)
+  range: 8,             // surface units — tries to keep this distance
+  preferredAng: 0.7,    // radians from player (spawn angle range)
+  fireInterval: 2.5,    // seconds between shots
+  projectileDamage: 8,  // damage per hit to player
+  projectileSpeed: 10,  // surface units/sec
+  projectileLife: 2.5,  // seconds
+  spawnWeight: 0.15,    // 15% chance to spawn instead of normal enemy
+};
 
 export const DIFFICULTY = {
   enemyHpBase: 30,

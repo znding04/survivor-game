@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO, BOSS,
+  PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO, BOSS, SPITTER,
 } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -115,16 +115,52 @@ export function update(state, dt, engine, move) {
       continue;
     }
 
-    slerpToward(e.localDir, target, (e.speed / PLANET_R) * dt);
-    e.bobTime += dt * 4;
+    // Spitter: maintain range and fire projectiles
+    if (e.spitter && !e.dying) {
+      const surfDist = angBetween(e.localDir, target) * PLANET_R;
+      e.bobTime += dt * 4;
 
-    // Contact damage
-    const surfDist = angBetween(e.localDir, target) * PLANET_R;
-    if (surfDist < 1.0) {
-      state.hp -= DIFFICULTY.contactDps * dt;
-      state.shake = 0.3;
-      engine.flashDamage();
-      slerpToward(e.localDir, target, -(2 / PLANET_R) * dt); // push back
+      if (surfDist < SPITTER.range - 1) {
+        // Too close — back up
+        slerpToward(e.localDir, target, -(state.speed * 0.6 / PLANET_R) * dt);
+      } else if (surfDist > SPITTER.range + 1) {
+        // Too far — approach
+        slerpToward(e.localDir, target, (e.speed / PLANET_R) * dt);
+      }
+      // else in range — hold position
+
+      // Contact damage still applies if player runs into spitter
+      if (surfDist < 1.0) {
+        state.hp -= DIFFICULTY.contactDps * dt;
+        state.shake = 0.3;
+        engine.flashDamage();
+        slerpToward(e.localDir, target, -(2 / PLANET_R) * dt);
+      }
+
+      // Fire projectile
+      e.fireTimer -= dt;
+      if (e.fireTimer <= 0) {
+        e.fireTimer = SPITTER.fireInterval;
+        state.spitterProjectiles.push({
+          localDir: e.localDir.clone(),
+          damage: SPITTER.projectileDamage,
+          speed: SPITTER.projectileSpeed,
+          life: SPITTER.projectileLife,
+          view: engine.spawnSpitterProjView(),
+        });
+      }
+    } else if (!e.dying) {
+      slerpToward(e.localDir, target, (e.speed / PLANET_R) * dt);
+      e.bobTime += dt * 4;
+
+      // Contact damage
+      const surfDist = angBetween(e.localDir, target) * PLANET_R;
+      if (surfDist < 1.0) {
+        state.hp -= DIFFICULTY.contactDps * dt;
+        state.shake = 0.3;
+        engine.flashDamage();
+        slerpToward(e.localDir, target, -(2 / PLANET_R) * dt); // push back
+      }
     }
 
     if (e.hp <= 0) {
@@ -147,6 +183,28 @@ export function update(state, dt, engine, move) {
     }
   }
 
+  // ── Spitter projectiles ──
+  for (let i = state.spitterProjectiles.length - 1; i >= 0; i--) {
+    const p = state.spitterProjectiles[i];
+    p.life -= dt;
+    // Move along great circle toward player
+    slerpToward(p.localDir, target, (p.speed / PLANET_R) * dt);
+
+    // Check hit on player
+    const surfDist = angBetween(p.localDir, target) * PLANET_R;
+    if (surfDist < 0.9) {
+      state.hp -= p.damage;
+      state.shake = 0.2;
+      engine.flashDamage();
+      engine.spawnDamageNumber(new THREE.Vector3(0, PLANET_R, 0), p.damage, 0xff4444);
+      engine.despawnSpitterProjView(p.view);
+      state.spitterProjectiles.splice(i, 1);
+      continue;
+    }
+
+    if (p.life <= 0) { engine.despawnSpitterProjView(p.view); state.spitterProjectiles.splice(i, 1); }
+  }
+
   // ── Gems ──
   for (let i = state.gems.length - 1; i >= 0; i--) {
     const g = state.gems[i];
@@ -167,7 +225,12 @@ export function update(state, dt, engine, move) {
 
 /* ═══ Spawning ════════════════════════════════════════════════ */
 function spawnEnemy(state, engine, speed, hpScale) {
-  const tmplIndex = Math.floor(Math.random() * ENEMY_TEMPLATES.length);
+  // 15% chance to spawn a spitter
+  if (Math.random() < SPITTER.spawnWeight) {
+    spawnSpitter(state, engine, speed, hpScale);
+    return;
+  }
+  const tmplIndex = Math.floor(Math.random() * 4); // normal blobs use templates 0-3
   const tmpl = ENEMY_TEMPLATES[tmplIndex];
   const ang = DIFFICULTY.spawnAngMin + Math.random() * (DIFFICULTY.spawnAngMax - DIFFICULTY.spawnAngMin);
   const localDir = state.targetLocal.clone().applyAxisAngle(randomPerp(state.targetLocal), ang).normalize();
@@ -179,6 +242,22 @@ function spawnEnemy(state, engine, speed, hpScale) {
     bobTime: Math.random() * Math.PI * 2,
     dying: false, deathTimer: 0, hitTimer: 0, hitFlash: 0,
     view: engine.spawnEnemyView(tmplIndex),
+  });
+}
+
+function spawnSpitter(state, engine, speed, hpScale) {
+  const ang = DIFFICULTY.spawnAngMin + Math.random() * (DIFFICULTY.spawnAngMax - DIFFICULTY.spawnAngMin);
+  const localDir = state.targetLocal.clone().applyAxisAngle(randomPerp(state.targetLocal), ang).normalize();
+  const hp = DIFFICULTY.enemyHpBase * SPITTER.hpMult * hpScale;
+  state.enemies.push({
+    localDir,
+    hp, maxHp: hp,
+    speed: speed * SPITTER.speedMult,
+    bobTime: Math.random() * Math.PI * 2,
+    dying: false, deathTimer: 0, hitTimer: 0, hitFlash: 0,
+    spitter: true,
+    fireTimer: SPITTER.fireInterval * 0.5, // stagger initial fire
+    view: engine.spawnEnemyView(4), // template index 4 = spitter template
   });
 }
 

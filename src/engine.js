@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS } from './config.js';
+import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS, SPITTER } from './config.js';
 
 // Phones get lighter settings (fewer pixels, smaller shadows, less foliage).
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
@@ -154,6 +154,7 @@ export const engine = {
     this._pools.pulse = makePool(() => { const v = makePulseRing(); this.scene.add(v); v.visible = false; return v; });
     this._pools.star = makePool(() => { const v = makeOrbitStar(); this.scene.add(v); v.visible = false; return v; });
     this._pools.magnetLine = makePool(() => { const v = makeMagnetLine(); this.scene.add(v); v.visible = false; return v; });
+    this._pools.spitterProj = makePool(() => { const v = makeSpitterProj(); this.planet.add(v); v.visible = false; return v; });
   },
 
   spawnEnemyView(tmplIndex, isBoss = false) {
@@ -187,6 +188,8 @@ export const engine = {
   despawnGemView(v) { this._pools.gem.release(v); },
   spawnProjectileView() { const v = this._pools.proj.acquire(); return v; },
   despawnProjectileView(v) { this._pools.proj.release(v); },
+  spawnSpitterProjView() { return this._pools.spitterProj.acquire(); },
+  despawnSpitterProjView(v) { this._pools.spitterProj.release(v); },
 
   /* ── Effects (called by logic; engine animates & recycles) ── */
   spawnParticles(pos, color, count = 8) {
@@ -213,9 +216,9 @@ export const engine = {
     p.userData.life = p.userData.maxLife = 1.4 + Math.random();
     this._fx.particles.push(p);
   },
-  spawnDamageNumber(pos, dmg) {
+  spawnDamageNumber(pos, dmg, colorHex = 0xffd54f) {
     const s = this._pools.damage.acquire();
-    drawDamage(s, Math.round(dmg));
+    drawDamage(s, Math.round(dmg), colorHex);
     s.position.copy(pos); s.position.y += 1.4;
     s.userData.vy = 2.5; s.userData.life = s.userData.maxLife = 0.8;
     this._fx.damage.push(s);
@@ -243,6 +246,8 @@ export const engine = {
     for (const e of state.enemies) this.despawnEnemyView(e.view);
     for (const g of state.gems) this.despawnGemView(g.view);
     for (const pr of state.projectiles) this.despawnProjectileView(pr.view);
+    for (const p of state.spitterProjectiles) this.despawnSpitterProjView(p.view);
+    state.spitterProjectiles.length = 0;
     for (const p of this._fx.particles) this._pools.particle.release(p);
     for (const d of this._fx.damage) this._pools.damage.release(d);
     for (const pu of this._fx.pulses) this._pools.pulse.release(pu);
@@ -386,6 +391,12 @@ export const engine = {
       v.position.copy(pr.localDir).multiplyScalar(PLANET_R + 0.6);
       v.quaternion.setFromUnitVectors(UP, pr.localDir);
       v.rotation.z += 0.2;
+    }
+    for (const p of state.spitterProjectiles) {
+      const v = p.view;
+      v.position.copy(p.localDir).multiplyScalar(PLANET_R + 0.6);
+      v.quaternion.setFromUnitVectors(UP, p.localDir);
+      v.rotation.z += 0.15;
     }
   },
 
@@ -657,13 +668,25 @@ function makeDamageSprite() {
   s.userData = { canvas, ctx: canvas.getContext('2d'), tex };
   return s;
 }
-function drawDamage(sprite, value) {
+function drawDamage(sprite, value, colorHex = 0xffd54f) {
   const { canvas, ctx, tex } = sprite.userData;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.font = 'bold 48px Nunito, sans-serif';
-  ctx.fillStyle = '#ffd54f'; ctx.strokeStyle = '#4a2040'; ctx.lineWidth = 4;
+  ctx.fillStyle = '#' + colorHex.toString(16).padStart(6, '0');
+  ctx.strokeStyle = '#4a2040'; ctx.lineWidth = 4;
   ctx.textAlign = 'center';
   ctx.strokeText(value, 64, 48); ctx.fillText(value, 64, 48);
   tex.needsUpdate = true;
   sprite.material.opacity = 1;
+}
+
+function makeSpitterProj() {
+  const g = new THREE.Group();
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8),
+    new THREE.MeshLambertMaterial({ color: 0xf48fb1, emissive: 0xf06292, emissiveIntensity: 0.4 }));
+  g.add(ball);
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xf48fb1, transparent: true, opacity: 0.3 }));
+  g.add(glow);
+  return g;
 }

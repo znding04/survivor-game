@@ -59,6 +59,7 @@ export function createState() {
     enemies: [],
     gems: [],
     projectiles: [],
+    spitterProjectiles: [],
 
     // Combo
     combo: 0,
