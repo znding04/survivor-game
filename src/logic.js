@@ -187,8 +187,8 @@ export function update(state, dt, engine, move) {
   for (let i = state.spitterProjectiles.length - 1; i >= 0; i--) {
     const p = state.spitterProjectiles[i];
     p.life -= dt;
-    // Move along great circle toward player
-    slerpToward(p.localDir, target, (p.speed / PLANET_R) * dt);
+    // Move along great circle in fixed direction (no tracking)
+    slerpToward(p.localDir, p.localDir, (p.speed / PLANET_R) * dt);
 
     // Check hit on player
     const surfDist = angBetween(p.localDir, target) * PLANET_R;
