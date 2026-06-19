@@ -144,6 +144,7 @@ export function update(state, dt, engine, move) {
         state.spitterProjectiles.push({
           localDir: e.localDir.clone(),
           moveDir: e.localDir.clone(), // fixed at spawn — no tracking
+          tangent: e.localDir.clone().cross(UP).normalize(), // rotation axis for movement
           damage: SPITTER.projectileDamage,
           speed: SPITTER.projectileSpeed,
           life: SPITTER.projectileLife,
@@ -188,8 +189,10 @@ export function update(state, dt, engine, move) {
   for (let i = state.spitterProjectiles.length - 1; i >= 0; i--) {
     const p = state.spitterProjectiles[i];
     p.life -= dt;
-    // Move along great circle in fixed direction (moveDir is set at spawn, never updated)
-    slerpToward(p.localDir, p.moveDir, (p.speed / PLANET_R) * dt);
+    // Rotate localDir around the tangent axis by a fixed step — no tracking
+    const step = (p.speed / PLANET_R) * dt;
+    _q.setFromAxisAngle(p.tangent, step);
+    p.localDir.applyQuaternion(_q);
 
     // Check hit on player
     const surfDist = angBetween(p.localDir, target) * PLANET_R;
