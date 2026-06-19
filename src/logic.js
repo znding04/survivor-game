@@ -122,7 +122,7 @@ export function update(state, dt, engine, move) {
 
       if (surfDist < SPITTER.range - 1) {
         // Too close — back up
-        slerpToward(e.localDir, target, -(state.speed * 0.6 / PLANET_R) * dt);
+        slerpToward(e.localDir, target, -(e.speed * 0.2 / PLANET_R) * dt);
       } else if (surfDist > SPITTER.range + 1) {
         // Too far — approach
         slerpToward(e.localDir, target, (e.speed / PLANET_R) * dt);
