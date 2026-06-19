@@ -145,7 +145,7 @@ export function update(state, dt, engine, move) {
         state.spitterProjectiles.push({
           localDir: e.localDir.clone(),
           moveDir: aimDir, // aimed at player at moment of fire
-          tangent: e.localDir.clone().cross(aimDir).cross(e.localDir).normalize(), // movement tangent toward player
+          tangent: e.localDir.clone().cross(aimDir).normalize(), // rotation axis: E × P moves E toward P
           damage: SPITTER.projectileDamage,
           speed: SPITTER.projectileSpeed,
           life: SPITTER.projectileLife,
