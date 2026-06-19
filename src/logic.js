@@ -143,6 +143,7 @@ export function update(state, dt, engine, move) {
         e.fireTimer = SPITTER.fireInterval;
         state.spitterProjectiles.push({
           localDir: e.localDir.clone(),
+          moveDir: e.localDir.clone(), // fixed at spawn — no tracking
           damage: SPITTER.projectileDamage,
           speed: SPITTER.projectileSpeed,
           life: SPITTER.projectileLife,
@@ -187,8 +188,8 @@ export function update(state, dt, engine, move) {
   for (let i = state.spitterProjectiles.length - 1; i >= 0; i--) {
     const p = state.spitterProjectiles[i];
     p.life -= dt;
-    // Move along great circle in fixed direction (no tracking)
-    slerpToward(p.localDir, p.localDir, (p.speed / PLANET_R) * dt);
+    // Move along great circle in fixed direction (moveDir is set at spawn, never updated)
+    slerpToward(p.localDir, p.moveDir, (p.speed / PLANET_R) * dt);
 
     // Check hit on player
     const surfDist = angBetween(p.localDir, target) * PLANET_R;
