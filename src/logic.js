@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO, BOSS, SPITTER,
+  RICOCHET, CRIT,
 } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -102,6 +103,7 @@ export function update(state, dt, engine, move) {
   if (active === 'orbit') stepOrbit(state, dt, engine, target);
   else state.orbitStars.length = 0; // hide stars when orbit is inactive
   if (active === 'homing') stepHoming(state, dt, engine, target);
+  if (active === 'ricochet') stepRicochet(state, dt, engine, target);
 
   // ── Enemy AI ──
   for (let i = state.enemies.length - 1; i >= 0; i--) {
@@ -305,10 +307,15 @@ function spawnGem(state, engine, localDir, valueMult = 1) {
 }
 
 function damageEnemy(state, engine, e, dmg, showNumber = true) {
-  e.hp -= dmg;
+  const isCrit = CRIT.chance > 0 && Math.random() < CRIT.chance;
+  const finalDmg = isCrit ? dmg * CRIT.multiplier : dmg;
+  e.hp -= finalDmg;
   e.hitTimer = 0.15;
   e.hitFlash = 0.08;
-  if (showNumber) engine.spawnDamageNumber(worldPos(e.localDir, state), dmg);
+  if (showNumber) {
+    const colorHex = isCrit ? 0xffd700 : 0xffd54f; // gold for crit, amber for normal
+    engine.spawnDamageNumber(worldPos(e.localDir, state), Math.round(finalDmg), colorHex);
+  }
 }
 
 /* ═══ Weapons ═════════════════════════════════════════════════ */
@@ -370,18 +377,59 @@ function stepHoming(state, dt, engine, target) {
   for (let i = state.projectiles.length - 1; i >= 0; i--) {
     const p = state.projectiles[i];
     p.life -= dt;
+
+    // ── Ricochet bounce: reflect when hitting the planet "floor" ──
+    if (p.bounces !== undefined && p.bounces > 0) {
+      // localDir.y < 0 means the projectile has gone "below the equator" toward south pole
+      // This means it hit the planet surface — reflect back
+      if (p.localDir.y < -(1.5 / PLANET_R)) {
+        p.localDir.y = -p.localDir.y;
+        // also neutralize tangential components to prevent spiral drift
+        const horizLen = Math.sqrt(p.localDir.x * p.localDir.x + p.localDir.z * p.localDir.z);
+        if (horizLen > 1e-6) {
+          p.localDir.x = (p.localDir.x / horizLen) * 0.5;
+          p.localDir.z = (p.localDir.z / horizLen) * 0.5;
+          p.localDir.normalize();
+        }
+        p.bounces--;
+      }
+    }
+
     let tgt = p.target;
     if (!tgt || tgt.dying || tgt.hp <= 0 || state.enemies.indexOf(tgt) < 0) {
       tgt = nearestEnemy(state, p.localDir); p.target = tgt;
     }
     if (tgt) {
       slerpToward(p.localDir, tgt.localDir, (p.speed / PLANET_R) * dt);
-      if (angBetween(p.localDir, tgt.localDir) * PLANET_R < HOMING.hitRange) {
+      const hitRange = p.bounces !== undefined ? RICOCHET.hitRange : HOMING.hitRange;
+      if (angBetween(p.localDir, tgt.localDir) * PLANET_R < hitRange) {
         damageEnemy(state, engine, tgt, p.damage);
         p.life = 0;
       }
     }
     if (p.life <= 0) { engine.despawnProjectileView(p.view); state.projectiles.splice(i, 1); }
+  }
+}
+
+function stepRicochet(state, dt, engine, target) {
+  if (state.ricochet.level <= 0) return;
+  state.ricochet.timer -= dt;
+  if (state.ricochet.timer > 0) return;
+  state.ricochet.timer = state.ricochet.cooldown;
+
+  const count = state.ricochet.level;
+  for (let i = 0; i < count; i++) {
+    const localDir = target.clone();
+    if (count > 1) localDir.applyAxisAngle(randomPerp(target), 0.12 * (i - (count - 1) / 2));
+    state.projectiles.push({
+      localDir,
+      target: nearestEnemy(state, target),
+      damage: state.ricochet.damage,
+      speed: RICOCHET.speed,
+      life: RICOCHET.life,
+      bounces: state.ricochet.bounces,
+      view: engine.spawnProjectileView(),
+    });
   }
 }
 

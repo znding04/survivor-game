@@ -37,8 +37,9 @@ function makePool(factory) {
 export const engine = {
   scene: null, camera: null, renderer: null, planet: null, player: null,
 
-  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [] },
+  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], bossHp: [] },
   _ambient: [],
+  _bossHpPool: [],
 
   /* ── Setup ──────────────────────────────────────────── */
   init() {
@@ -177,6 +178,7 @@ export const engine = {
   },
   despawnEnemyView(v) {
     if (v.userData.bossLabel) v.userData.bossLabel.visible = false;
+    if (v.userData.bossHpLabel) v.userData.bossHpLabel.visible = false;
     v.userData.isBoss = false;
     this._pools.enemy.release(v);
   },
@@ -353,7 +355,25 @@ export const engine = {
         ud.hpFill.quaternion.copy(_q);
         ud.hpFill.material.color.setHex(pct < 0.3 ? 0xff4444 : pct < 0.6 ? 0xffab40 : 0xff6b9d);
       }
+
+      // Boss HP numbers — sprite above the HP bar, always visible for bosses
+      if (e.boss) {
+        if (!ud.bossHpLabel) {
+          const lbl = makeBossHpLabel();
+          lbl.position.set(0, 2.5, 0);
+          v.add(lbl);
+          ud.bossHpLabel = lbl;
+        }
+        drawBossHp(ud.bossHpLabel, e.hp, e.maxHp);
+        _q.copy(this.planet.quaternion).multiply(v.quaternion).invert().multiply(camQ);
+        ud.bossHpLabel.quaternion.copy(_q);
+      } else if (ud.bossHpLabel) {
+        ud.bossHpLabel.visible = false;
+      }
     }
+
+    // Release any unused boss HP sprites from the pool
+    // (handled by despawnEnemyView)
   },
 
   _syncGems(state) {
@@ -656,7 +676,34 @@ function makeBossLabel() {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
   s.scale.set(1.8, 0.7, 1);
   s.position.set(0, 1.6, 0);
+  s.userData = { canvas, ctx, tex };
   return s;
+}
+
+function makeBossHpLabel() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 160; canvas.height = 40;
+  const ctx = canvas.getContext('2d');
+  const tex = new THREE.CanvasTexture(canvas);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  s.scale.set(2.0, 0.5, 1);
+  s.userData = { canvas, ctx, tex };
+  return s;
+}
+
+function drawBossHp(sprite, hp, maxHp) {
+  const { canvas, ctx, tex } = sprite.userData;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = 'bold 28px Nunito, sans-serif';
+  const pct = Math.max(0, hp / maxHp);
+  const r = Math.floor(255 * (1 - pct) * 2);
+  const g = Math.floor(255 * pct * 2);
+  ctx.fillStyle = `rgb(${Math.min(255, r)},${Math.min(255, g)},50)`;
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+  ctx.textAlign = 'center';
+  const text = `${Math.ceil(hp)} / ${Math.ceil(maxHp)}`;
+  ctx.strokeText(text, 80, 28); ctx.fillText(text, 80, 28);
+  tex.needsUpdate = true;
 }
 
 function makeDamageSprite() {

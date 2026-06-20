@@ -1,4 +1,4 @@
-import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING } from './config.js';
+import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING, RICOCHET } from './config.js';
 
 // id -> {icon, name} for the loadout panel; weapon ids get a gold border.
 const UP_META = Object.fromEntries(UPGRADES.map(u => [u.id, { icon: u.icon, name: u.name }]));
@@ -32,6 +32,11 @@ const WEAPON_TOOLTIPS = {
     desc: 'Fire seeking hearts that chase down the nearest enemy. Multiple hearts = multi-target.',
     stats: `Damage: ${HOMING.damage} | Speed: ${HOMING.speed} | Cooldown: ${HOMING.cooldown}s`,
     path: 'Unlocks: +Hearts, +Fire Rate',
+  },
+  ricochet: {
+    desc: 'Fire bullets that bounce off the planet surface up to 3 times, hitting enemies on each pass.',
+    stats: `Damage: ${RICOCHET.damage} | Bounces: ${RICOCHET.bounces} | Cooldown: ${RICOCHET.cooldown}s`,
+    path: 'Unlocks: +Bullets, +Damage, +Bounces',
   },
 };
 
@@ -71,7 +76,7 @@ export const ui = {
   _buildWeaponSwitcher() {
     const wrap = $('weapon-switcher');
     if (!wrap) return;
-    const icons = { pulse: '🌀', orbit: '✨', homing: '💘' };
+    const icons = { pulse: '🌀', orbit: '✨', homing: '💘', ricochet: '🔵' };
     wrap.innerHTML = '';
     for (const w of STARTING_WEAPONS) {
       const btn = document.createElement('button');

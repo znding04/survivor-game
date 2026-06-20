@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER, PULSE, ORBIT, HOMING, LEVEL, BOSS } from './config.js';
+import { PLAYER, PULSE, ORBIT, HOMING, LEVEL, BOSS, RICOCHET } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
    STATE — the game's mutable model. No rendering, no DOM.
@@ -44,6 +44,7 @@ export function createState() {
     pulse: { level: 0, damage: PULSE.damage, range: PULSE.range, cooldown: PULSE.cooldown, timer: 0 },
     orbit: { level: 0, dps: ORBIT.dps, spinPhase: 0 },
     homing: { level: 0, cooldown: HOMING.cooldown, timer: 0 },
+    ricochet: { level: 0, damage: RICOCHET.damage, cooldown: RICOCHET.cooldown, timer: 0, bounces: RICOCHET.bounces },
 
     // Active weapon (for weapon switching)
     activeWeaponId: 'pulse',

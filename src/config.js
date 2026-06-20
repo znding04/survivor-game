@@ -26,6 +26,7 @@ export const STARTING_WEAPONS = [
   { id: 'pulse', icon: '🌀', name: 'AOE Pulse', desc: 'Hits all nearby foes' },
   { id: 'orbit', icon: '✨', name: 'Sparkles', desc: 'Stars orbit you' },
   { id: 'homing', icon: '💘', name: 'Hearts', desc: 'Seek nearest foe' },
+  { id: 'ricochet', icon: '🔵', name: 'Ricochet', desc: 'Bouncing bullets' },
 ];
 
 export const PLAYER = {
@@ -109,7 +110,21 @@ export const BOSS = {
   deathParticlesPink: 20,
 };
 
-export const WEAPON_SWITCH_KEYS = ['Digit1', 'Digit2', 'Digit3'];
+export const RICOCHET = {
+  damage: 18,
+  speed: 22,
+  life: 3.0,
+  hitRange: 1.0,
+  cooldown: 1.8,
+  bounces: 2,
+};
+
+export const CRIT = {
+  chance: 0.15,
+  multiplier: 2.0,
+};
+
+export const WEAPON_SWITCH_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
 
 export const LEVEL = {
   xpToNextStart: 10,
@@ -204,5 +219,23 @@ export const UPGRADES = [
     desc: () => '+25% heart fire rate',
     available: (s) => s.homing.level > 0,
     apply: (s) => { s.homing.cooldown *= 0.8; },
+  },
+  {
+    id: 'ricochet', icon: '🔵', name: 'Ricochet Bullets',
+    desc: (s) => s.ricochet.level === 0 ? 'Unlock bouncing bullets' : '+1 bullet per volley',
+    available: () => true,
+    apply: (s) => { s.ricochet.level += 1; },
+  },
+  {
+    id: 'ricochet-dmg', icon: '🔷', name: 'Harder Bounces',
+    desc: () => '+25% ricochet damage',
+    available: (s) => s.ricochet.level > 0,
+    apply: (s) => { s.ricochet.damage *= 1.25; },
+  },
+  {
+    id: 'ricochet-bounce', icon: '↗️', name: 'Extra Bounce',
+    desc: () => '+1 bounce per shot',
+    available: (s) => s.ricochet.level > 0,
+    apply: (s) => { s.ricochet.bounces += 1; },
   },
 ];

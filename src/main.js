@@ -22,7 +22,7 @@ input.init({
 });
 if (input.isTouch) document.body.classList.add('touch');
 
-const WEAPON_ORDER = ['pulse', 'orbit', 'homing'];
+const WEAPON_ORDER = ['pulse', 'orbit', 'homing', 'ricochet'];
 
 function startGame() {
   engine.clearEntities(state);
