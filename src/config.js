@@ -80,7 +80,11 @@ export const SPITTER = {
   projectileDamage: 8,  // damage per hit to player
   projectileSpeed: 10,  // surface units/sec
   projectileLife: 2.5,  // seconds
-  spawnWeight: 0.15,    // 15% chance to spawn instead of normal enemy
+  // Spitter share of spawns ramps up with time instead of being a flat rate.
+  spawnDelay: 30,         // seconds before any spitter can appear
+  spawnWeightStart: 0.04, // share of spawns right after the delay
+  spawnWeightMax: 0.16,   // cap on the spitter share
+  spawnWeightRampSec: 150,// seconds (after the delay) to reach the cap
 };
 
 export const DIFFICULTY = {

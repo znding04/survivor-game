@@ -86,7 +86,7 @@ export function update(state, dt, engine, move) {
   if (state.spawnTimer <= 0) {
     state.spawnTimer = spawnInterval;
     const count = enemiesPerSpawn + Math.floor(Math.random() * 2);
-    for (let i = 0; i < count; i++) spawnEnemy(state, engine, enemySpeed, hpScale);
+    for (let i = 0; i < count; i++) spawnEnemy(state, engine, enemySpeed, hpScale, t);
   }
 
   // ── Boss spawn ──
@@ -229,11 +229,16 @@ export function update(state, dt, engine, move) {
 }
 
 /* ═══ Spawning ════════════════════════════════════════════════ */
-function spawnEnemy(state, engine, speed, hpScale) {
-  // 15% chance to spawn a spitter
-  if (Math.random() < SPITTER.spawnWeight) {
-    spawnSpitter(state, engine, speed, hpScale);
-    return;
+function spawnEnemy(state, engine, speed, hpScale, t) {
+  // Spitters stay away early, then grow as a share of spawns over time.
+  if (t >= SPITTER.spawnDelay) {
+    const ramp = Math.min(1, (t - SPITTER.spawnDelay) / SPITTER.spawnWeightRampSec);
+    const weight = SPITTER.spawnWeightStart +
+      (SPITTER.spawnWeightMax - SPITTER.spawnWeightStart) * ramp;
+    if (Math.random() < weight) {
+      spawnSpitter(state, engine, speed, hpScale);
+      return;
+    }
   }
   const tmplIndex = Math.floor(Math.random() * 4); // normal blobs use templates 0-3
   const tmpl = ENEMY_TEMPLATES[tmplIndex];
