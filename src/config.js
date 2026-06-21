@@ -98,6 +98,10 @@ export const DIFFICULTY = {
   // Enemies appear over the horizon: angular distance (rad) from the player.
   spawnAngMin: 0.6,
   spawnAngMax: 0.95,
+  // Early game (first 30s) is easier to give new players breathing room.
+  spawnIntervalEarlyGame: 4.0,  // slower spawns at the start
+  earlyGameEnd: 30,             // seconds before normal spawn rate kicks in
+  earlySpeedRampEnd: 15,        // enemies reach full speed by this time
 };
 
 export const BOSS = {

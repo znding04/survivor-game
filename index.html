@@ -184,11 +184,11 @@
     .weapon-card .wtooltip {
       margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(124,77,255,.15);
       text-align: left; font-size: 10px; color: #7c4dff; line-height: 1.4;
-      max-height: 0; overflow: hidden; opacity: 0;
-      transition: max-height .3s ease, opacity .3s ease;
+      max-height: 60px; overflow: hidden;
+      transition: max-height .3s ease;
     }
     .weapon-card:hover .wtooltip, .weapon-card.selected .wtooltip {
-      max-height: 120px; opacity: 1;
+      max-height: 120px; font-size: 11px;
     }
     .weapon-card .wtt-desc { color: #5e35b1; font-style: italic; margin-bottom: 3px; }
     .weapon-card .wtt-stats { color: #e91e63; font-weight: 700; margin-bottom: 2px; }

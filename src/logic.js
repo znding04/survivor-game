@@ -76,10 +76,17 @@ export function update(state, dt, engine, move) {
 
   // ── Difficulty (derived from time, not stored) ──
   const t = state.time;
-  const spawnInterval = Math.max(DIFFICULTY.spawnIntervalMin,
-    DIFFICULTY.spawnIntervalStart - t / DIFFICULTY.spawnRampSec);
+  // Early game: easier spawn rate (first 30s) and slower enemies (first 15s).
+  const spawnInterval = t < DIFFICULTY.earlyGameEnd
+    ? DIFFICULTY.spawnIntervalEarlyGame
+    : Math.max(DIFFICULTY.spawnIntervalMin,
+        DIFFICULTY.spawnIntervalStart - t / DIFFICULTY.spawnRampSec);
   const enemiesPerSpawn = Math.floor(2 + t / 30);
-  const enemySpeed = DIFFICULTY.enemySpeedBase + t / 120;
+  // Speed ramps from 60% at spawn to full speed by earlySpeedRampEnd seconds.
+  const speedScale = t < DIFFICULTY.earlySpeedRampEnd
+    ? 0.6 + (t / DIFFICULTY.earlySpeedRampEnd) * 0.4
+    : 1 + (t - DIFFICULTY.earlySpeedRampEnd) / 120;
+  const enemySpeed = DIFFICULTY.enemySpeedBase * speedScale;
   const hpScale = 1 + t / 120;
 
   // ── Spawn ──
