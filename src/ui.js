@@ -89,7 +89,7 @@ export const ui = {
   },
 
   switchWeapon(id, state) {
-    const weaponIds = ['pulse', 'orbit', 'homing'];
+    const weaponIds = ['pulse', 'orbit', 'homing', 'ricochet'];
     if (!weaponIds.includes(id)) return;
     if (state[id].level <= 0) return; // not owned
     state.activeWeaponId = id;

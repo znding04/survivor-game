@@ -143,6 +143,15 @@ export const engine = {
     p.position.set(0, PLANET_R, 0);
     this.scene.add(p);
     this.player = p;
+
+    // Pickup range ring — follows the player on the planet surface
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(1, 0.04, 8, 48),
+      new THREE.MeshBasicMaterial({ color: 0x64ffda, transparent: true, opacity: 0.25, depthWrite: false })
+    );
+    ring.rotation.x = Math.PI / 2;
+    this.planet.add(ring);
+    this._pickupRing = ring;
   },
 
   /* ── Pools for dynamic entities & effects ───────────── */
@@ -288,6 +297,22 @@ export const engine = {
       } else {
         this.player.scale.lerp(_ONE, 5 * dt);
       }
+
+      // Pickup range ring — always at the north pole (player position), radius = pickupRange
+      if (this._pickupRing) {
+        // Angular radius of pickup range on the sphere
+        const ringAng = state.pickupRange / PLANET_R;
+        // Ring lies in a plane perpendicular to the player's up (north pole)
+        // Its center is ringAng away from the pole along the Z axis, so it forms a circle around the player
+        const ringRadius = Math.sin(ringAng) * PLANET_R;  // world-space radius of the ring
+        this._pickupRing.scale.setScalar(ringRadius);
+        // Position at planet-local (0, PLANET_R, 0) = player at north pole
+        // The torus is already in the XZ plane (rotated 90° on X), so scaling X gives the ring radius
+        this._pickupRing.position.set(0, 0, 0); // planet-local; planet quaternion handles world pos
+        // Tilt the ring slightly so it hugs the curved surface
+        this._pickupRing.rotation.x = Math.PI / 2 + ringAng * 0.3;
+        this._pickupRing.material.opacity = 0.18 + Math.sin(state.time * 2) * 0.07;
+      }
     }
 
     this._syncEnemies(state, dt);
@@ -354,6 +379,30 @@ export const engine = {
         _q.copy(this.planet.quaternion).multiply(v.quaternion).invert().multiply(camQ);
         ud.hpFill.quaternion.copy(_q);
         ud.hpFill.material.color.setHex(pct < 0.3 ? 0xff4444 : pct < 0.6 ? 0xffab40 : 0xff6b9d);
+      }
+
+      // Elite ring: pulsing orange glow at the base, visible whenever HP bar shows
+      if (ud.isElite) {
+        ud.eliteRing.material.opacity = showBar ? (0.5 + Math.sin(state.time * 4) * 0.25) : 0;
+        // Elite HP numbers — small text above the HP bar, visible while damaged
+        if (showBar) {
+          if (!ud.hpSprite.visible) { ud.hpSprite.visible = true; }
+          const { hpCtx: ctx, hpTex: tex, hpCanvas: canvas } = ud;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.font = 'bold 20px Nunito, sans-serif';
+          ctx.fillStyle = '#ff8800';
+          ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+          ctx.textAlign = 'center';
+          const txt = `${Math.ceil(e.hp)}`;
+          ctx.strokeText(txt, 48, 24); ctx.fillText(txt, 48, 24);
+          tex.needsUpdate = true;
+          ud.hpSprite.quaternion.copy(_q);
+        } else {
+          ud.hpSprite.visible = false;
+        }
+      } else {
+        ud.eliteRing.material.opacity = 0;
+        if (ud.hpSprite) ud.hpSprite.visible = false;
       }
 
       // Boss HP numbers — sprite above the HP bar, always visible for bosses
@@ -593,7 +642,27 @@ function makeEnemy() {
     new THREE.MeshBasicMaterial({ color: 0xff6b9d }));
   hpFill.position.set(0, 1.0, 0); g.add(hpFill);
 
-  g.userData = { body, smile, blush, hpFill, tint: [] };
+  // Elite ring: thin glowing ring at the base, hidden by default
+  const eliteRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.5, 0.04, 6, 24),
+    new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0 })
+  );
+  eliteRing.rotation.x = -Math.PI / 2;
+  eliteRing.position.y = 0.03;
+  g.add(eliteRing);
+
+  // HP number text sprite for elites (and bosses via bossHpLabel path)
+  const hpCanvas = document.createElement('canvas');
+  hpCanvas.width = 96; hpCanvas.height = 32;
+  const hpCtx = hpCanvas.getContext('2d');
+  const hpTex = new THREE.CanvasTexture(hpCanvas);
+  const hpSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: hpTex, transparent: true, depthTest: false }));
+  hpSprite.scale.set(1.2, 0.4, 1);
+  hpSprite.position.set(0, 1.4, 0);
+  hpSprite.visible = false;
+  g.add(hpSprite);
+
+  g.userData = { body, smile, blush, hpFill, tint: [], eliteRing, hpSprite, hpCtx, hpTex, hpCanvas };
   return g;
 }
 
@@ -608,6 +677,13 @@ function applyEnemyTemplate(v, tmpl) {
     { mesh: ud.blush[0], base: tmpl.blush },
     { mesh: ud.blush[1], base: tmpl.blush },
   ];
+  // Elite enemies (orange blob, hpMult=1.5+) get a glowing ring + HP text
+  ud.isElite = tmpl.hpMult >= 1.4;
+  ud.eliteRing.material.opacity = 0; // always reset; shown in _syncEnemies when appropriate
+  ud.hpSprite.visible = false;
+  if (ud.isElite) {
+    ud.eliteRing.material.color.setHex(0xff8800);
+  }
 }
 
 function makeGem() {
