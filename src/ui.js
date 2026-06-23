@@ -40,8 +40,11 @@ const WEAPON_TOOLTIPS = {
   },
 };
 
+const WEAPON_ICONS = { pulse: '🌀', orbit: '✨', homing: '💘', ricochet: '🔵' };
+
 export const ui = {
   selectedWeapon: STARTING_WEAPONS[0].id,
+  _prevWeaponLevels: {},
 
   init({ onStart, engine }) {
     $('start-btn').addEventListener('click', onStart);
@@ -133,6 +136,53 @@ export const ui = {
     } else {
       comboEl.style.display = 'none';
     }
+
+    // ── Boss warning countdown ────────────────────────────────────────────
+    const warnEl = $('boss-warning');
+    if (state.bossTimer <= 10 && state.bossTimer > 0 && state.running) {
+      const secs = Math.ceil(state.bossTimer);
+      warnEl.textContent = `BOSS IN ${secs}s!`;
+      warnEl.style.display = 'block';
+    } else {
+      warnEl.style.display = 'none';
+    }
+
+    // ── Boss HP bar in HUD ────────────────────────────────────────────────
+    const bossHudBar = $('boss-hud-bar');
+    const boss = state.enemies.find(e => e.boss && !e.dying);
+    if (boss) {
+      const pct = Math.max(0, boss.hp / boss.maxHp * 100);
+      document.querySelector('#boss-hp-bar .bar-fill').style.width = pct + '%';
+      $('boss-hud-label').textContent = `BOSS  ${Math.ceil(boss.hp)} / ${Math.ceil(boss.maxHp)}`;
+      bossHudBar.style.display = 'block';
+    } else {
+      bossHudBar.style.display = 'none';
+    }
+
+    // ── Weapon unlock flash ───────────────────────────────────────────────
+    const weaponIds = ['pulse', 'orbit', 'homing', 'ricochet'];
+    for (const wid of weaponIds) {
+      const prev = this._prevWeaponLevels[wid] ?? 0;
+      if (prev === 0 && state[wid].level > 0) {
+        this._showWeaponUnlock(wid);
+      }
+      this._prevWeaponLevels[wid] = state[wid].level;
+    }
+  },
+
+  _showWeaponUnlock(weaponId) {
+    const el = $('weapon-unlock');
+    if (!el) return;
+    const name = STARTING_WEAPONS.find(w => w.id === weaponId)?.name ?? weaponId;
+    const icon = WEAPON_ICONS[weaponId] ?? '⭐';
+    el.textContent = `UNLOCKED: ${icon} ${name}`;
+    // Re-trigger animation by forcing reflow
+    el.style.display = 'block';
+    el.style.animation = 'none';
+    void el.offsetWidth; // reflow
+    el.style.animation = 'weaponUnlockAnim 2s ease-out forwards';
+    clearTimeout(this._unlockTimeout);
+    this._unlockTimeout = setTimeout(() => { el.style.display = 'none'; }, 2000);
   },
 
   // Rebuild the loadout panel (weapons first, then passive upgrades).
@@ -156,6 +206,7 @@ export const ui = {
   },
 
   enterGame(showTouch) {
+    this._prevWeaponLevels = {};
     $('start-screen').style.display = 'none';
     $('gameover-screen').style.display = 'none';
     $('hud').style.display = 'block';

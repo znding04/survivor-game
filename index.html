@@ -24,6 +24,28 @@
     @keyframes comboPulse { 0% { transform: scale(1); } 50% { transform: scale(1.25); } 100% { transform: scale(1); } }
     #hud-combo.combo-pulse { animation: comboPulse .2s ease-out; }
 
+    /* ─── Boss warning ─── */
+    #boss-warning {
+      display: none; font-size: 22px; font-weight: 900; color: #ff4444;
+      text-shadow: 0 0 12px rgba(255,68,68,.8), 0 2px 6px rgba(0,0,0,.5);
+      animation: bossWarnPulse .5s ease-in-out infinite alternate;
+    }
+    @keyframes bossWarnPulse { from { opacity: .7; transform: scale(1); } to { opacity: 1; transform: scale(1.05); } }
+
+    /* ─── Weapon unlock flash ─── */
+    #weapon-unlock {
+      display: none; font-size: 18px; font-weight: 900; color: #64ffda;
+      text-shadow: 0 0 12px rgba(100,255,218,.8), 0 2px 6px rgba(0,0,0,.5);
+      animation: weaponUnlockAnim 2s ease-out forwards;
+    }
+    @keyframes weaponUnlockAnim {
+      0%   { opacity: 0; transform: translateY(8px) scale(0.9); }
+      15%  { opacity: 1; transform: translateY(0) scale(1.1); }
+      30%  { transform: scale(1); }
+      80%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
     /* ─── Damage flash ─── */
     #damage-flash {
       position: fixed; inset: 0; pointer-events: none; z-index: 8;
@@ -289,9 +311,15 @@
       <div id="loadout"></div>
     </div>
     <div id="hud-right">
+      <div id="boss-warning"></div>
+      <div id="boss-hud-bar" style="display:none">
+        <div id="boss-hud-label" style="font-size:11px;font-weight:700;color:#ffd54f;text-shadow:0 1px 4px rgba(0,0,0,.6);margin-bottom:1px;"></div>
+        <div class="bar-wrap" id="boss-hp-bar"><div class="bar-fill" style="width:100%;background:linear-gradient(90deg,#ff4444,#ff6b00);"></div></div>
+      </div>
       <div id="hud-time">00:00</div>
       <div id="hud-kills">Kills: 0</div>
       <div id="weapon-switcher"></div>
+      <div id="weapon-unlock"></div>
     </div>
   </div>
 </div>
