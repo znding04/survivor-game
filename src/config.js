@@ -27,6 +27,7 @@ export const STARTING_WEAPONS = [
   { id: 'orbit', icon: '✨', name: 'Sparkles', desc: 'Stars orbit you' },
   { id: 'homing', icon: '💘', name: 'Hearts', desc: 'Seek nearest foe' },
   { id: 'ricochet', icon: '🔵', name: 'Ricochet', desc: 'Bouncing bullets' },
+  { id: 'shield', icon: '🛡️', name: 'Pickle Shield', desc: 'Orbiting shards that block and damage' },
 ];
 
 export const PLAYER = {
@@ -123,12 +124,23 @@ export const RICOCHET = {
   bounces: 2,
 };
 
+export const SHIELD = {
+  cooldown: 12,        // seconds between activations
+  rechargeTime: 8,     // seconds to recharge after absorption
+  absorbCount: 1,      // projectiles blocked per activation
+  shardCount: 3,       // shards at level 1; +1 per extra level
+  radius: 4,            // orbit radius from player
+  spin: 1.8,           // radians/sec
+  dps: 18,             // damage per second per shard to enemies in touch range
+  hitRange: 1.2,       // contact range for shard damage
+};
+
 export const CRIT = {
   chance: 0.15,
   multiplier: 2.0,
 };
 
-export const WEAPON_SWITCH_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
+export const WEAPON_SWITCH_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'];
 
 export const LEVEL = {
   xpToNextStart: 10,
@@ -241,5 +253,26 @@ export const UPGRADES = [
     desc: () => '+1 bounce per shot',
     available: (s) => s.ricochet.level > 0,
     apply: (s) => { s.ricochet.bounces += 1; },
+  },
+  {
+    id: 'shield', icon: '🛡️', name: 'Pickle Shield',
+    desc: (s) => s.shield.level === 0 ? 'Unlock orbiting shards' : '+1 shard & +1 block',
+    available: () => true,
+    apply: (s) => {
+      s.shield.level += 1;
+      if (s.shield.level > 1) { s.shield.shardCount += 1; s.shield.absorbCount += 1; }
+    },
+  },
+  {
+    id: 'shield-power', icon: '⚔️', name: 'Sharper Shards',
+    desc: () => '+35% shard damage',
+    available: (s) => s.shield.level > 0,
+    apply: (s) => { s.shield.dps *= 1.35; },
+  },
+  {
+    id: 'shield-recharge', icon: '🔋', name: 'Faster Recharge',
+    desc: () => '+25% faster shield recharge',
+    available: (s) => s.shield.level > 0,
+    apply: (s) => { s.shield.rechargeTime *= 0.75; },
   },
 ];

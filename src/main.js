@@ -15,14 +15,14 @@ const state = createState();
 const clock = new THREE.Clock();
 
 engine.init();
-ui.init({ onStart: startGame, engine });
+ui.init({ onStart: startGame, engine, onWeaponSwitch: switchWeaponById });
 input.init({
   onPause: togglePause,
   canMove: () => state.running && !state.paused && !state.upgrading,
 });
 if (input.isTouch) document.body.classList.add('touch');
 
-const WEAPON_ORDER = ['pulse', 'orbit', 'homing', 'ricochet'];
+const WEAPON_ORDER = ['pulse', 'orbit', 'homing', 'ricochet', 'shield'];
 
 function startGame() {
   engine.clearEntities(state);
@@ -36,6 +36,11 @@ function startGame() {
   ui.updateWeaponSwitcher(state);
   input.reset();
   clock.getDelta(); // drop the idle delta
+}
+
+function switchWeaponById(id) {
+  if (!state.running || state.paused || state.upgrading) return;
+  ui.switchWeapon(id, state);
 }
 
 // Weapon switch via number keys 1/2/3

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER, PULSE, ORBIT, HOMING, LEVEL, BOSS, RICOCHET } from './config.js';
+import { PLAYER, PULSE, ORBIT, HOMING, LEVEL, BOSS, RICOCHET, SHIELD } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
    STATE — the game's mutable model. No rendering, no DOM.
@@ -25,6 +25,7 @@ export function createState() {
     targetLocal: new THREE.Vector3(0, 1, 0), // planet-local dir of the player's feet
     playerFace: 0,                            // yaw the player model turns toward
     orbitStars: [],                           // world positions of orbiting sparkles
+    shieldStars: [],                           // world positions of orbiting shield shards
 
     // Player stats
     hp: PLAYER.maxHp,
@@ -48,6 +49,9 @@ export function createState() {
 
     // Active weapon (for weapon switching)
     activeWeaponId: 'pulse',
+
+    // Shield (orbiting shards)
+    shield: { level: 0, timer: 0, rechargeTimer: 0, absorbed: 0, spinPhase: 0, shardCount: SHIELD.shardCount, absorbCount: SHIELD.absorbCount },
 
     // Boss
     bossTimer: BOSS.interval,

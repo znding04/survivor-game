@@ -37,7 +37,7 @@ function makePool(factory) {
 export const engine = {
   scene: null, camera: null, renderer: null, planet: null, player: null,
 
-  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], bossHp: [] },
+  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], shards: [], bossHp: [] },
   _ambient: [],
   _bossHpPool: [],
 
@@ -165,6 +165,7 @@ export const engine = {
     this._pools.star = makePool(() => { const v = makeOrbitStar(); this.scene.add(v); v.visible = false; return v; });
     this._pools.magnetLine = makePool(() => { const v = makeMagnetLine(); this.scene.add(v); v.visible = false; return v; });
     this._pools.spitterProj = makePool(() => { const v = makeSpitterProj(); this.planet.add(v); v.visible = false; return v; });
+    this._pools.shard = makePool(() => { const v = makeShieldShard(); this.planet.add(v); v.visible = false; return v; });
   },
 
   spawnEnemyView(tmplIndex, isBoss = false) {
@@ -252,6 +253,24 @@ export const engine = {
     this._flashTimeout = setTimeout(() => { el.style.opacity = '0'; }, 100);
   },
 
+  /* ── Shield blocked projectile effect ──────────────── */
+  spawnBlockedEffect(pos) {
+    // Brief white flash ring at impact point
+    for (let i = 0; i < 6; i++) {
+      const p = this._pools.particle.acquire();
+      p.material.color.setHex(0xffffff); p.material.opacity = 1;
+      p.scale.setScalar(0.8);
+      p.position.copy(pos);
+      const a = (i / 6) * Math.PI * 2, sp = 3 + Math.random() * 2;
+      p.userData.vx = Math.cos(a) * sp;
+      p.userData.vy = 0.5 + Math.random() * 1;
+      p.userData.vz = Math.sin(a) * sp;
+      p.userData.gravity = false;
+      p.userData.life = p.userData.maxLife = 0.3 + Math.random() * 0.2;
+      this._fx.particles.push(p);
+    }
+  },
+
   /* ── Scene reset between runs ────────────────────────── */
   clearEntities(state) {
     for (const e of state.enemies) this.despawnEnemyView(e.view);
@@ -263,9 +282,10 @@ export const engine = {
     for (const d of this._fx.damage) this._pools.damage.release(d);
     for (const pu of this._fx.pulses) this._pools.pulse.release(pu);
     for (const st of this._fx.stars) this._pools.star.release(st);
+    for (const sh of this._fx.shards) this._pools.shard.release(sh);
     for (const ml of this._fx.magnetLines) this._pools.magnetLine.release(ml);
     this._fx.particles.length = 0; this._fx.damage.length = 0;
-    this._fx.pulses.length = 0; this._fx.stars.length = 0;
+    this._fx.pulses.length = 0; this._fx.stars.length = 0; this._fx.shards.length = 0;
     this._fx.magnetLines.length = 0;
   },
 
@@ -319,6 +339,7 @@ export const engine = {
     this._syncGems(state);
     this._syncProjectiles(state);
     this._syncStars(state);
+    this._syncShards(state);
     this._updateEffects(dt);
     this._updateAmbient(dt);
 
@@ -477,6 +498,17 @@ export const engine = {
     for (let i = 0; i < want; i++) {
       have[i].position.copy(state.orbitStars[i]);
       have[i].rotation.y += 0.2; have[i].rotation.x += 0.12;
+    }
+  },
+
+  _syncShards(state) {
+    const want = state.shieldStars.length;
+    const have = this._fx.shards;
+    while (have.length < want) have.push(this._pools.shard.acquire());
+    while (have.length > want) this._pools.shard.release(have.pop());
+    for (let i = 0; i < want; i++) {
+      have[i].position.copy(state.shieldStars[i]);
+      have[i].rotation.y += 0.15;
     }
   },
 
@@ -717,6 +749,24 @@ function makeOrbitStar() {
   const glow = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8),
     new THREE.MeshBasicMaterial({ color: 0xfff176, transparent: true, opacity: 0.25 }));
   g.add(glow);
+  return g;
+}
+
+function makeShieldShard() {
+  // Elongated green shard — pickle-coloured
+  const g = new THREE.Group();
+  const shard = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.5, 0.1),
+    new THREE.MeshLambertMaterial({ color: 0x4caf50, emissive: 0x2e7d32, emissiveIntensity: 0.3 })
+  );
+  g.add(shard);
+  // Outline tip
+  const tip = new THREE.Mesh(
+    new THREE.ConeGeometry(0.12, 0.25, 4),
+    new THREE.MeshLambertMaterial({ color: 0x66bb6a })
+  );
+  tip.position.y = 0.35;
+  g.add(tip);
   return g;
 }
 

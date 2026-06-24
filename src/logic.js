@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO, BOSS, SPITTER,
-  RICOCHET, CRIT,
+  RICOCHET, CRIT, SHIELD,
 } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -111,6 +111,8 @@ export function update(state, dt, engine, move) {
   else state.orbitStars.length = 0; // hide stars when orbit is inactive
   if (active === 'homing') stepHoming(state, dt, engine, target);
   if (active === 'ricochet') stepRicochet(state, dt, engine, target);
+  if (active === 'shield') stepShield(state, dt, engine, target);
+  else state.shieldStars.length = 0; // hide shards when shield is inactive
 
   // ── Enemy AI ──
   for (let i = state.enemies.length - 1; i >= 0; i--) {
@@ -204,9 +206,19 @@ export function update(state, dt, engine, move) {
     _q.setFromAxisAngle(p.tangent, step);
     p.localDir.applyQuaternion(_q);
 
-    // Check hit on player
+    // Check hit on player (or shield absorption)
     const surfDist = angBetween(p.localDir, target) * PLANET_R;
     if (surfDist < 0.9) {
+      // Check if shield is active and can absorb
+      if (state.shield.level > 0 && state.shield.timer > 0 && state.shield.absorbed > 0) {
+        // Shield absorbs this projectile
+        state.shield.absorbed--;
+        if (state.shield.absorbed <= 0) state.shield.timer = 0; // deactivate shield early
+        engine.spawnBlockedEffect(worldPos(p.localDir, state));
+        engine.despawnSpitterProjView(p.view);
+        state.spitterProjectiles.splice(i, 1);
+        continue;
+      }
       state.hp -= p.damage;
       state.shake = 0.2;
       engine.flashDamage();
@@ -437,6 +449,49 @@ function stepRicochet(state, dt, engine, target) {
       bounces: state.ricochet.bounces,
       view: engine.spawnProjectileView(),
     });
+  }
+}
+
+function stepShield(state, dt, engine, target) {
+  state.shieldStars.length = 0;
+  if (state.shield.level <= 0) return;
+
+  // Active: timer counts down; rechargeTimer tracks recharge progress
+  if (state.shield.timer > 0) {
+    state.shield.timer -= dt;
+    state.shield.spinPhase += dt * SHIELD.spin;
+
+    const count = state.shield.shardCount;
+    const ringAng = SHIELD.radius / PLANET_R;
+    for (let i = 0; i < count; i++) {
+      const az = state.shield.spinPhase + (i / count) * Math.PI * 2;
+      const dir = _v.copy(UP).applyAxisAngle(_axis.set(Math.cos(az), 0, Math.sin(az)), ringAng);
+      const wp = dir.clone().multiplyScalar(PLANET_R + 0.5);
+      state.shieldStars.push(wp);
+
+      // Damage enemies in contact
+      for (const e of state.enemies) {
+        if (e.dying) continue;
+        if (worldPos(e.localDir, state).distanceTo(wp) < SHIELD.hitRange) {
+          e.hp -= state.shield.dps * dt;
+          e.hitFlash = 0.06;
+        }
+      }
+    }
+
+    // Auto-deactivate when timer runs out
+    if (state.shield.timer <= 0) {
+      state.shield.absorbed = 0;
+      state.shield.rechargeTimer = SHIELD.rechargeTime;
+    }
+  } else {
+    // Recharging
+    state.shield.rechargeTimer -= dt;
+    if (state.shield.rechargeTimer <= 0) {
+      // Ready — activate
+      state.shield.timer = 3.0; // active duration in seconds
+      state.shield.absorbed = state.shield.absorbCount;
+    }
   }
 }
 

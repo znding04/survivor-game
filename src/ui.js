@@ -1,4 +1,4 @@
-import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING, RICOCHET } from './config.js';
+import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING, RICOCHET, SHIELD } from './config.js';
 
 // id -> {icon, name} for the loadout panel; weapon ids get a gold border.
 const UP_META = Object.fromEntries(UPGRADES.map(u => [u.id, { icon: u.icon, name: u.name }]));
@@ -38,19 +38,24 @@ const WEAPON_TOOLTIPS = {
     stats: `Damage: ${RICOCHET.damage} | Bounces: ${RICOCHET.bounces} | Cooldown: ${RICOCHET.cooldown}s`,
     path: 'Unlocks: +Bullets, +Damage, +Bounces',
   },
+  shield: {
+    desc: 'Orbiting pickle shards that damage enemies on contact AND block incoming projectiles. Recharges after use.',
+    stats: `DPS: ${SHIELD.dps} | Shards: ${SHIELD.shardCount} | Blocks: ${SHIELD.absorbCount} | Recharge: ${SHIELD.rechargeTime}s`,
+    path: 'Unlocks: +Shards, +Damage, +Recharge Speed',
+  },
 };
 
-const WEAPON_ICONS = { pulse: '🌀', orbit: '✨', homing: '💘', ricochet: '🔵' };
+const WEAPON_ICONS = { pulse: '🌀', orbit: '✨', homing: '💘', ricochet: '🔵', shield: '🛡️' };
 
 export const ui = {
   selectedWeapon: STARTING_WEAPONS[0].id,
   _prevWeaponLevels: {},
 
-  init({ onStart, engine }) {
+  init({ onStart, engine, onWeaponSwitch }) {
     $('start-btn').addEventListener('click', onStart);
     $('restart-btn').addEventListener('click', onStart);
     this._buildWeaponPicker();
-    this._buildWeaponSwitcher();
+    this._buildWeaponSwitcher(onWeaponSwitch);
     this._initCamSlider(engine);
     this.refreshHighScore();
   },
@@ -76,23 +81,23 @@ export const ui = {
     }
   },
 
-  _buildWeaponSwitcher() {
+  _buildWeaponSwitcher(onWeaponSwitch) {
     const wrap = $('weapon-switcher');
     if (!wrap) return;
-    const icons = { pulse: '🌀', orbit: '✨', homing: '💘', ricochet: '🔵' };
     wrap.innerHTML = '';
     for (const w of STARTING_WEAPONS) {
       const btn = document.createElement('button');
       btn.className = 'ws-btn';
       btn.dataset.weapon = w.id;
-      btn.textContent = icons[w.id];
+      btn.textContent = WEAPON_ICONS[w.id] ?? '⭐';
       btn.title = w.name;
+      btn.onclick = () => onWeaponSwitch(w.id);
       wrap.appendChild(btn);
     }
   },
 
   switchWeapon(id, state) {
-    const weaponIds = ['pulse', 'orbit', 'homing', 'ricochet'];
+    const weaponIds = ['pulse', 'orbit', 'homing', 'ricochet', 'shield'];
     if (!weaponIds.includes(id)) return;
     if (state[id].level <= 0) return; // not owned
     state.activeWeaponId = id;
@@ -160,7 +165,7 @@ export const ui = {
     }
 
     // ── Weapon unlock flash ───────────────────────────────────────────────
-    const weaponIds = ['pulse', 'orbit', 'homing', 'ricochet'];
+    const weaponIds = ['pulse', 'orbit', 'homing', 'ricochet', 'shield'];
     for (const wid of weaponIds) {
       const prev = this._prevWeaponLevels[wid] ?? 0;
       if (prev === 0 && state[wid].level > 0) {
