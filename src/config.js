@@ -113,6 +113,12 @@ export const BOSS = {
   gemValueMult: 10,         // XP gem value multiplier
   deathParticlesGold: 30,
   deathParticlesPink: 20,
+  // Boss enrage: gets faster/more aggressive over time
+  enrageSpeedBonus: 0.1,    // speed multiplier increase per 10s of enrage
+  enrageSpeedCap: 1.5,     // max speed multiplier from enrage
+  enrageFireRateBonus: 0.2, // fire rate increase per 15s of enrage (multiplier)
+  enrageFireRateCap: 2.0,  // max fire rate multiplier from enrage
+  enrageDisplayTime: 20,   // seconds before showing "ENRAGED!" text
 };
 
 export const RICOCHET = {

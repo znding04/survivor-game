@@ -40,6 +40,7 @@ export const engine = {
   _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], shards: [], bossHp: [] },
   _ambient: [],
   _bossHpPool: [],
+  _bossEnrage: 0, // current boss enrage level (seconds)
 
   /* ── Setup ──────────────────────────────────────────── */
   init() {
@@ -302,6 +303,7 @@ export const engine = {
     localStorage.setItem('survivor-campitch', this._camPitch.toString());
   },
   getCameraPitch() { return this._camPitch; },
+  setBossEnrage(t) { this._bossEnrage = t; },
 
   /* ── Per-frame render: mirror state onto the scene ───── */
   render(state, dt) {
@@ -437,8 +439,18 @@ export const engine = {
         drawBossHp(ud.bossHpLabel, e.hp, e.maxHp);
         _q.copy(this.planet.quaternion).multiply(v.quaternion).invert().multiply(camQ);
         ud.bossHpLabel.quaternion.copy(_q);
+
+        // Boss enrage glow: body emissive intensity increases with enrage time
+        const enrageLevel = Math.min(1, this._bossEnrage / 60); // max glow at 60s
+        if (enrageLevel > 0) {
+          ud.body.material.emissive.setHex(0xff0000);
+          ud.body.material.emissiveIntensity = enrageLevel * 0.8;
+        } else {
+          ud.body.material.emissiveIntensity = 0;
+        }
       } else if (ud.bossHpLabel) {
         ud.bossHpLabel.visible = false;
+        ud.body.material.emissiveIntensity = 0; // reset in case pooled from a boss
       }
     }
 

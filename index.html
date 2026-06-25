@@ -53,6 +53,17 @@
       opacity: 0; transition: opacity 0.4s ease;
     }
 
+    /* ─── Low HP danger vignette ─── */
+    #danger-vignette {
+      position: fixed; inset: 0; pointer-events: none; z-index: 7;
+      background: radial-gradient(ellipse at center, transparent 30%, rgba(255,0,0,0.6) 100%);
+      opacity: 0; transition: opacity 0.3s ease;
+    }
+    #danger-vignette.danger-1 { opacity: 0.15; }
+    #danger-vignette.danger-2 { opacity: 0.35; animation: dangerPulse 0.8s ease-in-out infinite alternate; }
+    #danger-vignette.danger-3 { opacity: 0.55; animation: dangerPulse 0.5s ease-in-out infinite alternate; }
+    @keyframes dangerPulse { from { opacity: 0.4; } to { opacity: 0.7; } }
+
     /* ─── HUD ─── */
     #hud {
       position: fixed; top: 0; left: 0; width: 100%;
@@ -243,6 +254,7 @@
     .lo-chip .lo-ic { font-size: 15px; line-height: 1; }
     .lo-chip .lo-nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .lo-chip .lo-lv { color: #ffd54f; font-weight: 900; }
+    .lo-chip .lo-kills { color: #b0bec5; font-size: 10px; font-weight: 700; }
     @media (max-width: 560px) {
       #loadout { max-width: 150px; gap: 3px; }
       .lo-chip { font-size: 11px; padding: 2px 6px; }
@@ -315,6 +327,7 @@
       <div id="boss-hud-bar" style="display:none">
         <div id="boss-hud-label" style="font-size:11px;font-weight:700;color:#ffd54f;text-shadow:0 1px 4px rgba(0,0,0,.6);margin-bottom:1px;"></div>
         <div class="bar-wrap" id="boss-hp-bar"><div class="bar-fill" style="width:100%;background:linear-gradient(90deg,#ff4444,#ff6b00);"></div></div>
+        <div id="boss-enrage" style="display:none;font-size:11px;font-weight:900;color:#ff4444;text-shadow:0 0 8px rgba(255,0,0,.8);animation:bossWarnPulse .5s ease-in-out infinite alternate;">ENRAGED!</div>
       </div>
       <div id="hud-time">00:00</div>
       <div id="hud-kills">Kills: 0</div>
@@ -356,6 +369,7 @@
 </div>
 
 <div id="damage-flash"></div>
+<div id="danger-vignette"></div>
 
 <script type="importmap">
 {

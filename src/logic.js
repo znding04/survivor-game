@@ -101,7 +101,35 @@ export function update(state, dt, engine, move) {
   state.bossTimer -= dt;
   if (state.bossTimer <= 0) {
     state.bossTimer = BOSS.interval;
+    state.bossEnrageTimer = 0; // reset enrage timer on new boss spawn
     spawnBoss(state, engine, enemySpeed, hpScale);
+  }
+
+  // ── Boss enrage tracker ─────────────────────────────────────────────────────
+  // While any boss is alive, increment the enrage timer for speed/fire rate bonuses.
+  const aliveBoss = state.enemies.find(e => e.boss && !e.dying);
+  if (aliveBoss) {
+    state.bossEnrageTimer += dt;
+    // Speed enrage: +10% per 10s, cap at 1.5x
+    const speedBonus = Math.min(
+      BOSS.enrageSpeedCap,
+      1 + Math.floor(state.bossEnrageTimer / 10) * BOSS.enrageSpeedBonus
+    );
+    aliveBoss.speed = (DIFFICULTY.enemySpeedBase * speedScale * BOSS.speedMult) * speedBonus;
+    // Fire rate enrage for spitter component (boss uses normal enemy AI + spitter if applicable)
+    if (aliveBoss.spitter) {
+      const fireBonus = Math.min(
+        BOSS.enrageFireRateCap,
+        1 + Math.floor(state.bossEnrageTimer / 15) * BOSS.enrageFireRateBonus
+      );
+      // aliveBoss.fireTimer is already used by spitter logic; scale its interval via a stored multiplier
+      if (aliveBoss.enrageFireMult === undefined) aliveBoss.enrageFireMult = 1;
+      aliveBoss.enrageFireMult = fireBonus;
+    }
+    // Pass enrage level to engine for visual glow
+    engine.setBossEnrage(state.bossEnrageTimer);
+  } else {
+    engine.setBossEnrage(0);
   }
 
   // ── Weapons (only fire the active one; inactive timers freeze) ──
@@ -149,9 +177,10 @@ export function update(state, dt, engine, move) {
       }
 
       // Fire projectile
+      const fireMult = e.enrageFireMult !== undefined ? e.enrageFireMult : 1;
       e.fireTimer -= dt;
       if (e.fireTimer <= 0) {
-        e.fireTimer = SPITTER.fireInterval;
+        e.fireTimer = SPITTER.fireInterval / fireMult;
         const aimDir = target.clone(); // direction toward player
         state.spitterProjectiles.push({
           localDir: e.localDir.clone(),
@@ -182,6 +211,7 @@ export function update(state, dt, engine, move) {
       const w = worldPos(e.localDir, state);
       if (e.boss) {
         state.bossKills++;
+        state.bossEnrageTimer = 0; // reset enrage timer on boss death
         engine.spawnParticles(w, 0xffd54f, BOSS.deathParticlesGold);
         engine.spawnParticles(w, 0xffb3d9, BOSS.deathParticlesPink);
         spawnGem(state, engine, e.localDir, BOSS.gemValueMult);
@@ -190,6 +220,8 @@ export function update(state, dt, engine, move) {
         state.combo++;
         state.comboTimer = COMBO.window;
         state.comboMultiplier = 1 + Math.floor(state.combo / COMBO.killsPerTier) * COMBO.tierBonus;
+        // Track kills per active weapon
+        state.weaponKills[state.activeWeaponId] = (state.weaponKills[state.activeWeaponId] || 0) + 1;
         engine.spawnParticles(w, 0xffd54f, 10);
         engine.spawnParticles(w, 0xffb3d9, 6);
         spawnGem(state, engine, e.localDir);

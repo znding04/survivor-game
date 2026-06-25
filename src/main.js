@@ -86,6 +86,16 @@ function animate() {
     if (state.leveledUp) { state.leveledUp = false; levelUp(); }
     if (state.over) gameOver();
     ui.updateHUD(state);
+
+    // Low HP danger vignette
+    const hpPct = state.hp / state.maxHp;
+    const vig = document.getElementById('danger-vignette');
+    if (vig) {
+      vig.className = '';
+      if (hpPct <= 0.15) vig.className = 'danger-3';
+      else if (hpPct <= 0.30) vig.className = 'danger-2';
+      else if (hpPct <= 0.50) vig.className = 'danger-1';
+    }
   }
 
   engine.render(state, dt);

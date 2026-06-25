@@ -56,6 +56,7 @@ export function createState() {
     // Boss
     bossTimer: BOSS.interval,
     bossKills: 0,
+    bossEnrageTimer: 0,    // seconds since last boss spawn
 
     // Spawning
     spawnTimer: 1,
@@ -70,6 +71,9 @@ export function createState() {
     combo: 0,
     comboTimer: 0,
     comboMultiplier: 1,
+
+    // Weapon kill tracking
+    weaponKills: { pulse: 0, orbit: 0, homing: 0, ricochet: 0, shield: 0 },
 
     // Transient feedback
     shake: 0,

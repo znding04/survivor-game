@@ -1,4 +1,4 @@
-import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING, RICOCHET, SHIELD } from './config.js';
+import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING, RICOCHET, SHIELD, BOSS } from './config.js';
 
 // id -> {icon, name} for the loadout panel; weapon ids get a gold border.
 const UP_META = Object.fromEntries(UPGRADES.map(u => [u.id, { icon: u.icon, name: u.name }]));
@@ -160,6 +160,13 @@ export const ui = {
       document.querySelector('#boss-hp-bar .bar-fill').style.width = pct + '%';
       $('boss-hud-label').textContent = `BOSS  ${Math.ceil(boss.hp)} / ${Math.ceil(boss.maxHp)}`;
       bossHudBar.style.display = 'block';
+      // Show enrage text after the display threshold
+      const enrageEl = $('boss-enrage');
+      if (state.bossEnrageTimer >= BOSS.enrageDisplayTime) {
+        enrageEl.style.display = 'block';
+      } else {
+        enrageEl.style.display = 'none';
+      }
     } else {
       bossHudBar.style.display = 'none';
     }
@@ -202,10 +209,12 @@ export const ui = {
       const chip = document.createElement('div');
       const isActive = WEAPON_IDS.has(id) && id === state.activeWeaponId;
       chip.className = 'lo-chip' + (WEAPON_IDS.has(id) ? ' lo-weapon' : '') + (isActive ? ' lo-active' : '');
+      const kills = WEAPON_IDS.has(id) ? (state.weaponKills[id] || 0) : 0;
+      const killsHtml = kills > 0 ? `<span class="lo-kills"> ${kills}K</span>` : '';
       chip.innerHTML =
         `<span class="lo-ic">${meta.icon}</span>` +
         `<span class="lo-nm">${meta.name}</span>` +
-        `<span class="lo-lv">Lv${state.upgrades[id]}</span>`;
+        `<span class="lo-lv">Lv${state.upgrades[id]}</span>${killsHtml}`;
       el.appendChild(chip);
     }
   },
