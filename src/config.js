@@ -146,6 +146,28 @@ export const CRIT = {
   multiplier: 2.0,
 };
 
+export const ELITE = {
+  hpMult: 3,              // 3x HP multiplier vs normal enemy
+  scale: 1.5,             // visual size multiplier
+  gemValueMult: 3,        // XP gem value multiplier
+  spawnChance: 0.05,      // 5% chance to spawn instead of a normal enemy
+  deathParticlesGold: 18,
+  deathParticlesPink: 12,
+};
+
+export const LIGHTNING = {
+  chainRange: 5,          // surface units — max distance for chain jumps
+  chainCount: 2,          // max enemies to chain to per kill
+  damageRatio: 0.3,       // chained enemies take this fraction of the killing blow
+  life: 0.35,             // seconds the arc stays visible
+};
+
+export const DASH = {
+  speedMult: 3,           // speed multiplier during dash
+  duration: 0.25,         // seconds of invincibility
+  cooldown: 8,            // seconds between dashes
+};
+
 export const WEAPON_SWITCH_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'];
 
 export const LEVEL = {

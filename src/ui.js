@@ -1,4 +1,4 @@
-import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING, RICOCHET, SHIELD, BOSS } from './config.js';
+import { STARTING_WEAPONS, UPGRADES, PULSE, ORBIT, HOMING, RICOCHET, SHIELD, BOSS, DASH } from './config.js';
 
 // id -> {icon, name} for the loadout panel; weapon ids get a gold border.
 const UP_META = Object.fromEntries(UPGRADES.map(u => [u.id, { icon: u.icon, name: u.name }]));
@@ -179,6 +179,16 @@ export const ui = {
         this._showWeaponUnlock(wid);
       }
       this._prevWeaponLevels[wid] = state[wid].level;
+    }
+
+    // ── Dash cooldown indicator ────────────────────────────────────────────
+    const dashEl = $('dash-indicator');
+    const dashFill = $('dash-bar-fill');
+    if (dashEl && dashFill) {
+      const cooldownRemaining = state.dash.cooldownTimer;
+      const pct = Math.max(0, (1 - cooldownRemaining / DASH.cooldown) * 100);
+      dashFill.style.width = pct + '%';
+      dashEl.classList.toggle('cooldown', cooldownRemaining > 0);
     }
   },
 

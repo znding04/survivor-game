@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS, SPITTER } from './config.js';
+import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS, SPITTER, ELITE, LIGHTNING } from './config.js';
 
 // Phones get lighter settings (fewer pixels, smaller shadows, less foliage).
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
@@ -37,7 +37,7 @@ function makePool(factory) {
 export const engine = {
   scene: null, camera: null, renderer: null, planet: null, player: null,
 
-  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], shards: [], bossHp: [] },
+  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], shards: [], bossHp: [], chainLightnings: [] },
   _ambient: [],
   _bossHpPool: [],
   _bossEnrage: 0, // current boss enrage level (seconds)
@@ -167,13 +167,15 @@ export const engine = {
     this._pools.magnetLine = makePool(() => { const v = makeMagnetLine(); this.scene.add(v); v.visible = false; return v; });
     this._pools.spitterProj = makePool(() => { const v = makeSpitterProj(); this.planet.add(v); v.visible = false; return v; });
     this._pools.shard = makePool(() => { const v = makeShieldShard(); this.planet.add(v); v.visible = false; return v; });
+    this._pools.chainLightning = makePool(() => { const v = makeChainLightning(); this.scene.add(v); v.visible = false; return v; });
   },
 
-  spawnEnemyView(tmplIndex, isBoss = false) {
+  spawnEnemyView(tmplIndex, isBoss = false, isElite = false) {
     const v = this._pools.enemy.acquire();
-    applyEnemyTemplate(v, ENEMY_TEMPLATES[tmplIndex]);
-    v.scale.setScalar(isBoss ? BOSS.scale : 1);
+    applyEnemyTemplate(v, ENEMY_TEMPLATES[tmplIndex], isElite);
+    v.scale.setScalar(isBoss ? BOSS.scale : (isElite ? ELITE.scale : 1));
     v.userData.isBoss = isBoss;
+    v.userData.isElite = isElite;
     // Boss label
     if (isBoss) {
       if (!v.userData.bossLabel) {
@@ -272,7 +274,21 @@ export const engine = {
     }
   },
 
-  /* ── Scene reset between runs ────────────────────────── */
+/* ── Chain lightning arc ─────────────────────────────────────── */
+  spawnChainLightning(from, to) {
+    const line = this._pools.chainLightning.acquire();
+    const positions = line.geometry.attributes.position;
+    positions.setXYZ(0, from.x, from.y, from.z);
+    positions.setXYZ(1, to.x, to.y, to.z);
+    positions.needsUpdate = true;
+    line.userData.life = LIGHTNING.life;
+    line.userData.maxLife = LIGHTNING.life;
+    line.material.opacity = 1;
+    line.visible = true;
+    this._fx.chainLightnings.push(line);
+  },
+
+  /* ── Scene reset between runs ────────────────────────────────── */
   clearEntities(state) {
     for (const e of state.enemies) this.despawnEnemyView(e.view);
     for (const g of state.gems) this.despawnGemView(g.view);
@@ -285,9 +301,10 @@ export const engine = {
     for (const st of this._fx.stars) this._pools.star.release(st);
     for (const sh of this._fx.shards) this._pools.shard.release(sh);
     for (const ml of this._fx.magnetLines) this._pools.magnetLine.release(ml);
+    for (const cl of this._fx.chainLightnings) this._pools.chainLightning.release(cl);
     this._fx.particles.length = 0; this._fx.damage.length = 0;
     this._fx.pulses.length = 0; this._fx.stars.length = 0; this._fx.shards.length = 0;
-    this._fx.magnetLines.length = 0;
+    this._fx.magnetLines.length = 0; this._fx.chainLightnings.length = 0;
   },
 
   /* ── Camera angle (0 = low/cinematic, 1 = top-down) ──── */
@@ -318,6 +335,24 @@ export const engine = {
         this.player.scale.set(sq, 1 / sq, sq);
       } else {
         this.player.scale.lerp(_ONE, 5 * dt);
+      }
+
+      // Invincibility flash — cycle emissive color when invincible
+      if (state.invincible) {
+        const flash = Math.sin(state.time * 30) > 0;
+        this.player.traverse(child => {
+          if (child.isMesh && child.material && child.material.emissive) {
+            child.material.emissive.setHex(flash ? 0x80d8ff : 0x000000);
+            child.material.emissiveIntensity = flash ? 0.6 : 0.2;
+          }
+        });
+      } else {
+        this.player.traverse(child => {
+          if (child.isMesh && child.material && child.material.emissive) {
+            child.material.emissive.setHex(0x000000);
+            child.material.emissiveIntensity = 0;
+          }
+        });
       }
 
       // Pickup range ring — always at the north pole (player position), radius = pickupRange
@@ -426,6 +461,15 @@ export const engine = {
       } else {
         ud.eliteRing.material.opacity = 0;
         if (ud.hpSprite) ud.hpSprite.visible = false;
+      }
+
+      // Elite ring: pulsing orange glow at the base, visible whenever elite flag is set
+      if (e.elite) {
+        const baseScale = ELITE.scale;
+        ud.eliteRing.scale.setScalar(baseScale * (1 + Math.sin(state.time * 4) * 0.1));
+        ud.eliteRing.material.opacity = 0.5 + Math.sin(state.time * 4) * 0.25;
+      } else {
+        ud.eliteRing.material.opacity = 0;
       }
 
       // Boss HP numbers — sprite above the HP bar, always visible for bosses
@@ -549,6 +593,11 @@ export const engine = {
       const t = pu.userData.life / pu.userData.maxLife;
       pu.material.opacity = t * 0.4;
       pu.scale.setScalar(pu.userData.range * (1 + (1 - t) * 0.5));
+    }
+    for (let i = fx.chainLightnings.length - 1; i >= 0; i--) {
+      const cl = fx.chainLightnings[i]; cl.userData.life -= dt;
+      if (cl.userData.life <= 0) { cl.visible = false; this._pools.chainLightning.release(cl); fx.chainLightnings.splice(i, 1); continue; }
+      cl.material.opacity = (cl.userData.life / cl.userData.maxLife) * 0.9;
     }
   },
 
@@ -710,7 +759,7 @@ function makeEnemy() {
   return g;
 }
 
-function applyEnemyTemplate(v, tmpl) {
+function applyEnemyTemplate(v, tmpl, isElite = false) {
   const ud = v.userData;
   ud.body.material.color.setHex(tmpl.color);
   ud.smile.material.color.setHex(tmpl.eye);
@@ -721,11 +770,11 @@ function applyEnemyTemplate(v, tmpl) {
     { mesh: ud.blush[0], base: tmpl.blush },
     { mesh: ud.blush[1], base: tmpl.blush },
   ];
-  // Elite enemies (orange blob, hpMult=1.5+) get a glowing ring + HP text
-  ud.isElite = tmpl.hpMult >= 1.4;
+  // isElite flag (from spawnElite) takes precedence over template-based detection
+  ud.isElite = isElite;
   ud.eliteRing.material.opacity = 0; // always reset; shown in _syncEnemies when appropriate
   ud.hpSprite.visible = false;
-  if (ud.isElite) {
+  if (isElite) {
     ud.eliteRing.material.color.setHex(0xff8800);
   }
 }
@@ -874,4 +923,12 @@ function makeSpitterProj() {
     new THREE.MeshBasicMaterial({ color: 0xf48fb1, transparent: true, opacity: 0.3 }));
   g.add(glow);
   return g;
+}
+
+function makeChainLightning() {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+  return new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color: 0x80d8ff, transparent: true, opacity: 1,
+  }));
 }

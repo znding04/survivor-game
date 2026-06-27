@@ -12,7 +12,8 @@ export const input = {
   _move: { x: 0, z: 0 },
   _joy: null, _knob: null,
 
-  init({ onPause, canMove }) {
+  init({ onPause, onDash, canMove }) {
+    this._onDash = onDash || (() => {});
     this._joy = document.getElementById('joystick');
     this._knob = document.getElementById('joystick-knob');
     this._canvas = document.querySelector('canvas');
@@ -20,6 +21,7 @@ export const input = {
     window.addEventListener('keydown', e => {
       this._keys[e.code] = true;
       if (e.code === 'Escape' || e.code === 'KeyP') onPause();
+      if (e.code === 'Space' && canMove()) this._onDash();
     });
     window.addEventListener('keyup', e => { this._keys[e.code] = false; });
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLAYER, PULSE, ORBIT, HOMING, LEVEL, BOSS, RICOCHET, SHIELD } from './config.js';
+import { PLAYER, PULSE, ORBIT, HOMING, LEVEL, BOSS, RICOCHET, SHIELD, DASH } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
    STATE — the game's mutable model. No rendering, no DOM.
@@ -77,6 +77,14 @@ export function createState() {
 
     // Transient feedback
     shake: 0,
+
+    // Invincibility dash
+    invincible: false,
+    dash: { timer: 0, cooldownTimer: DASH.cooldown, active: false },
+    wantsDash: false,
+
+    // Chain lightning arcs (world-space from/to points + lifetime)
+    chainLightnings: [],
   };
 }
 

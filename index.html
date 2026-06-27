@@ -277,6 +277,29 @@
     }
     .ws-btn:disabled { cursor: default; }
 
+    /* ─── Dash indicator ─── */
+    #dash-indicator {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 700; color: #80d8ff;
+      text-shadow: 0 1px 4px rgba(0,0,0,.6); margin-top: 6px;
+      transition: color .2s, text-shadow .2s;
+    }
+    #dash-indicator.cooldown {
+      color: #546e7a; text-shadow: none;
+    }
+    #dash-bar {
+      width: 50px; height: 5px; border-radius: 3px;
+      background: rgba(255,255,255,.2); overflow: hidden;
+    }
+    #dash-bar-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, #80d8ff, #00e5ff);
+      transition: width .1s linear;
+    }
+    #dash-indicator.cooldown #dash-bar-fill {
+      background: #546e7a;
+    }
+
     /* ─── Small screens ─── */
     @media (max-width: 560px) {
       #start-screen p { font-size: 16px; margin-bottom: 22px; }
@@ -333,6 +356,11 @@
       <div id="hud-kills">Kills: 0</div>
       <div id="weapon-switcher"></div>
       <div id="weapon-unlock"></div>
+      <div id="dash-indicator">
+        <span>⚡</span>
+        <div id="dash-bar"><div id="dash-bar-fill" style="width:100%"></div></div>
+        <span id="dash-key">Space</span>
+      </div>
     </div>
   </div>
 </div>

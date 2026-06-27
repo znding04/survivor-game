@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO, BOSS, SPITTER,
-  RICOCHET, CRIT, SHIELD,
+  RICOCHET, CRIT, SHIELD, ELITE, LIGHTNING, DASH,
 } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -50,6 +50,37 @@ function nearestEnemy(state, fromDir) {
 /* ═══ Main step ═══════════════════════════════════════════════ */
 export function update(state, dt, engine, move) {
   state.time += dt;
+
+  // ── Dash ─────────────────────────────────────────────────────────────────
+  if (state.wantsDash && !state.dash.active && state.dash.cooldownTimer <= 0) {
+    state.dash.active = true;
+    state.dash.timer = DASH.duration;
+    state.wantsDash = false;
+  }
+  if (state.wantsDash && !state.dash.active) state.wantsDash = false; // clear if on cooldown
+
+  if (state.dash.active) {
+    state.invincible = true;
+    state.dash.timer -= dt;
+    // Move at dash speed in the current move direction
+    const dashMove = move.x !== 0 || move.z !== 0 ? move : { x: 0, z: 1 };
+    _v.set(dashMove.x, 0, dashMove.z);
+    if (_v.lengthSq() > 0) {
+      _v.normalize();
+      _axis.crossVectors(_v, UP).normalize();
+      const dashSpeed = state.speed * DASH.speedMult;
+      _q.setFromAxisAngle(_axis, (dashSpeed / PLANET_R) * dt);
+      state.planetQuat.premultiply(_q);
+      state.playerFace = Math.atan2(_v.x, _v.z);
+    }
+    if (state.dash.timer <= 0) {
+      state.dash.active = false;
+      state.invincible = false;
+      state.dash.cooldownTimer = DASH.cooldown;
+    }
+  } else if (state.dash.cooldownTimer > 0) {
+    state.dash.cooldownTimer -= dt;
+  }
 
   // ── Movement: rotate the planet beneath the fixed player ──
   _v.set(move.x, 0, move.z);
@@ -169,10 +200,12 @@ export function update(state, dt, engine, move) {
       // else in range — hold position
 
       // Contact damage still applies if player runs into spitter
-      if (surfDist < 1.0) {
+      if (surfDist < 1.0 && !state.invincible) {
         state.hp -= DIFFICULTY.contactDps * dt;
         state.shake = 0.3;
         engine.flashDamage();
+        slerpToward(e.localDir, target, -(2 / PLANET_R) * dt);
+      } else if (surfDist < 1.0 && state.invincible) {
         slerpToward(e.localDir, target, -(2 / PLANET_R) * dt);
       }
 
@@ -198,11 +231,13 @@ export function update(state, dt, engine, move) {
 
       // Contact damage
       const surfDist = angBetween(e.localDir, target) * PLANET_R;
-      if (surfDist < 1.0) {
+      if (surfDist < 1.0 && !state.invincible) {
         state.hp -= DIFFICULTY.contactDps * dt;
         state.shake = 0.3;
         engine.flashDamage();
         slerpToward(e.localDir, target, -(2 / PLANET_R) * dt); // push back
+      } else if (surfDist < 1.0 && state.invincible) {
+        slerpToward(e.localDir, target, -(2 / PLANET_R) * dt);
       }
     }
 
@@ -215,6 +250,17 @@ export function update(state, dt, engine, move) {
         engine.spawnParticles(w, 0xffd54f, BOSS.deathParticlesGold);
         engine.spawnParticles(w, 0xffb3d9, BOSS.deathParticlesPink);
         spawnGem(state, engine, e.localDir, BOSS.gemValueMult);
+      } else if (e.elite) {
+        state.kills++;
+        state.combo++;
+        state.comboTimer = COMBO.window;
+        state.comboMultiplier = 1 + Math.floor(state.combo / COMBO.killsPerTier) * COMBO.tierBonus;
+        state.weaponKills[state.activeWeaponId] = (state.weaponKills[state.activeWeaponId] || 0) + 1;
+        engine.spawnParticles(w, 0xff9800, ELITE.deathParticlesGold);
+        engine.spawnParticles(w, 0xffb74d, ELITE.deathParticlesPink);
+        spawnGem(state, engine, e.localDir, ELITE.gemValueMult);
+        // Chain lightning from elite death
+        triggerChainLightning(state, engine, e, e.maxHp * 0.3, w);
       } else {
         state.kills++;
         state.combo++;
@@ -225,6 +271,8 @@ export function update(state, dt, engine, move) {
         engine.spawnParticles(w, 0xffd54f, 10);
         engine.spawnParticles(w, 0xffb3d9, 6);
         spawnGem(state, engine, e.localDir);
+        // Chain lightning from normal kill
+        triggerChainLightning(state, engine, e, DIFFICULTY.enemyHpBase * hpScale * 0.3, w);
       }
     }
   }
@@ -241,20 +289,23 @@ export function update(state, dt, engine, move) {
     // Check hit on player (or shield absorption)
     const surfDist = angBetween(p.localDir, target) * PLANET_R;
     if (surfDist < 0.9) {
-      // Check if shield is active and can absorb
-      if (state.shield.level > 0 && state.shield.timer > 0 && state.shield.absorbed > 0) {
-        // Shield absorbs this projectile
-        state.shield.absorbed--;
-        if (state.shield.absorbed <= 0) state.shield.timer = 0; // deactivate shield early
-        engine.spawnBlockedEffect(worldPos(p.localDir, state));
-        engine.despawnSpitterProjView(p.view);
-        state.spitterProjectiles.splice(i, 1);
-        continue;
+      // Skip damage if player is invincible
+      if (!state.invincible) {
+        // Check if shield is active and can absorb
+        if (state.shield.level > 0 && state.shield.timer > 0 && state.shield.absorbed > 0) {
+          // Shield absorbs this projectile
+          state.shield.absorbed--;
+          if (state.shield.absorbed <= 0) state.shield.timer = 0; // deactivate shield early
+          engine.spawnBlockedEffect(worldPos(p.localDir, state));
+          engine.despawnSpitterProjView(p.view);
+          state.spitterProjectiles.splice(i, 1);
+          continue;
+        }
+        state.hp -= p.damage;
+        state.shake = 0.2;
+        engine.flashDamage();
+        engine.spawnDamageNumber(new THREE.Vector3(0, PLANET_R, 0), p.damage, 0xff4444);
       }
-      state.hp -= p.damage;
-      state.shake = 0.2;
-      engine.flashDamage();
-      engine.spawnDamageNumber(new THREE.Vector3(0, PLANET_R, 0), p.damage, 0xff4444);
       engine.despawnSpitterProjView(p.view);
       state.spitterProjectiles.splice(i, 1);
       continue;
@@ -281,6 +332,27 @@ export function update(state, dt, engine, move) {
   if (state.hp <= 0) { state.hp = 0; state.over = true; }
 }
 
+/* ═══ Chain Lightning ══════════════════════════════════════════ */
+// Find nearby enemies and arc lightning to them, dealing damage.
+function triggerChainLightning(state, engine, victim, damage, worldPos) {
+  let chains = 0;
+  const angRange = LIGHTNING.chainRange / PLANET_R;
+  for (const e of state.enemies) {
+    if (e === victim || e.dying) continue;
+    const ang = angBetween(victim.localDir, e.localDir);
+    if (ang <= angRange && chains < LIGHTNING.chainCount) {
+      const chainDmg = damage * LIGHTNING.damageRatio;
+      e.hp -= chainDmg;
+      e.hitTimer = 0.1;
+      e.hitFlash = 0.08;
+      const wp = worldPos(e.localDir, state);
+      engine.spawnChainLightning(worldPos, wp);
+      engine.spawnDamageNumber(wp, Math.round(chainDmg), 0x80d8ff);
+      chains++;
+    }
+  }
+}
+
 /* ═══ Spawning ════════════════════════════════════════════════ */
 function spawnEnemy(state, engine, speed, hpScale, t) {
   // Spitters stay away early, then grow as a share of spawns over time.
@@ -293,6 +365,13 @@ function spawnEnemy(state, engine, speed, hpScale, t) {
       return;
     }
   }
+
+  // 5% chance to spawn an elite instead of a normal blob
+  if (Math.random() < ELITE.spawnChance) {
+    spawnElite(state, engine, speed, hpScale);
+    return;
+  }
+
   const tmplIndex = Math.floor(Math.random() * 4); // normal blobs use templates 0-3
   const tmpl = ENEMY_TEMPLATES[tmplIndex];
   const ang = DIFFICULTY.spawnAngMin + Math.random() * (DIFFICULTY.spawnAngMax - DIFFICULTY.spawnAngMin);
@@ -322,6 +401,26 @@ function spawnSpitter(state, engine, speed, hpScale) {
     fireTimer: SPITTER.fireInterval * 0.5, // stagger initial fire
     view: engine.spawnEnemyView(4), // template index 4 = spitter template
   });
+}
+
+function spawnElite(state, engine, speed, hpScale) {
+  // Elites use a random normal template but get elite flag, 3x HP, 1.5x scale
+  const tmplIndex = Math.floor(Math.random() * 4);
+  const tmpl = ENEMY_TEMPLATES[tmplIndex];
+  const ang = DIFFICULTY.spawnAngMin + Math.random() * (DIFFICULTY.spawnAngMax - DIFFICULTY.spawnAngMin);
+  const localDir = state.targetLocal.clone().applyAxisAngle(randomPerp(state.targetLocal), ang).normalize();
+  const hp = DIFFICULTY.enemyHpBase * tmpl.hpMult * hpScale * ELITE.hpMult;
+  state.enemies.push({
+    localDir,
+    hp, maxHp: hp,
+    speed: speed * (0.8 + Math.random() * 0.4),
+    bobTime: Math.random() * Math.PI * 2,
+    dying: false, deathTimer: 0, hitTimer: 0, hitFlash: 0,
+    elite: true,
+    view: engine.spawnEnemyView(tmplIndex, false, true), // third arg = isElite
+  });
+  const w = worldPos(localDir, state);
+  engine.spawnParticles(w, 0xff9800, 8); // orange burst on elite spawn
 }
 
 function spawnBoss(state, engine, speed, hpScale) {

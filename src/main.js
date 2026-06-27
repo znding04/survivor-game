@@ -18,6 +18,7 @@ engine.init();
 ui.init({ onStart: startGame, engine, onWeaponSwitch: switchWeaponById });
 input.init({
   onPause: togglePause,
+  onDash: () => { if (state.running && !state.upgrading) state.wantsDash = true; },
   canMove: () => state.running && !state.paused && !state.upgrading,
 });
 if (input.isTouch) document.body.classList.add('touch');
