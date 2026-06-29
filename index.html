@@ -83,6 +83,10 @@
     .bar-fill { height: 100%; border-radius: 8px; transition: width .3s ease; }
     #hp-bar .bar-fill { background: linear-gradient(90deg, #ff6b9d, #ff4081); }
     #xp-bar .bar-fill { background: linear-gradient(90deg, #64ffda, #00e5ff); }
+    #xp-bar.glow .bar-fill {
+      background: linear-gradient(90deg, #b2ff59, #76ff03, #64ffda);
+      box-shadow: 0 0 12px 3px rgba(100, 255, 218, 0.7);
+    }
     #hp-label, #xp-label {
       font-size: 12px; font-weight: 700; color: #fff;
       text-shadow: 0 1px 4px rgba(0,0,0,.6); margin-bottom: 1px;

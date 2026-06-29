@@ -64,6 +64,7 @@ export function createState() {
     // Entity lists
     enemies: [],
     gems: [],
+    hpGlobes: [],
     projectiles: [],
     spitterProjectiles: [],
 

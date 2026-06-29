@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO, BOSS, SPITTER,
-  RICOCHET, CRIT, SHIELD, ELITE, LIGHTNING, DASH,
+  RICOCHET, CRIT, SHIELD, ELITE, LIGHTNING, DASH, HP_GLOBE,
 } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -271,6 +271,10 @@ export function update(state, dt, engine, move) {
         engine.spawnParticles(w, 0xffd54f, 10);
         engine.spawnParticles(w, 0xffb3d9, 6);
         spawnGem(state, engine, e.localDir);
+        // HP globe drop chance (normal enemies only, not bosses/elites)
+        if (!e.boss && !e.elite && Math.random() < HP_GLOBE.dropChance) {
+          spawnHpGlobe(state, engine, e.localDir);
+        }
         // Chain lightning from normal kill
         triggerChainLightning(state, engine, e, DIFFICULTY.enemyHpBase * hpScale * 0.3, w);
       }
@@ -325,6 +329,22 @@ export function update(state, dt, engine, move) {
       engine.despawnGemView(g.view);
       state.gems.splice(i, 1);
       gainXp(state, engine, g.value);
+    }
+  }
+
+  // ── HP Globes ──
+  for (let i = state.hpGlobes.length - 1; i >= 0; i--) {
+    const g = state.hpGlobes[i];
+    g.bobTime += dt * HP_GLOBE.bobSpeed;
+    const d = angBetween(g.localDir, target) * PLANET_R;
+    if (d < state.pickupRange) slerpToward(g.localDir, target, (10 / PLANET_R) * dt);
+    if (d < 0.9) {
+      // Heal the player
+      state.hp = Math.min(state.maxHp, state.hp + HP_GLOBE.healAmount);
+      engine.spawnParticles(worldPos(g.localDir, state), 0x4caf50, 8);
+      engine.spawnDamageNumber(worldPos(g.localDir, state), HP_GLOBE.healAmount, 0x4caf50);
+      engine.despawnHpGlobeView(g.view);
+      state.hpGlobes.splice(i, 1);
     }
   }
 
@@ -456,6 +476,14 @@ function spawnGem(state, engine, localDir, valueMult = 1) {
   });
 }
 
+function spawnHpGlobe(state, engine, localDir) {
+  state.hpGlobes.push({
+    localDir: localDir.clone(),
+    bobTime: Math.random() * Math.PI * 2,
+    view: engine.spawnHpGlobeView(),
+  });
+}
+
 function damageEnemy(state, engine, e, dmg, showNumber = true) {
   const isCrit = CRIT.chance > 0 && Math.random() < CRIT.chance;
   const finalDmg = isCrit ? dmg * CRIT.multiplier : dmg;
@@ -465,6 +493,11 @@ function damageEnemy(state, engine, e, dmg, showNumber = true) {
   if (showNumber) {
     const colorHex = isCrit ? 0xffd700 : 0xffd54f; // gold for crit, amber for normal
     engine.spawnDamageNumber(worldPos(e.localDir, state), Math.round(finalDmg), colorHex);
+    // Big "CRIT!" text above for critical hits
+    if (isCrit) {
+      const wp = worldPos(e.localDir, state);
+      engine.spawnCritText(new THREE.Vector3(wp.x, wp.y + 1.8, wp.z));
+    }
   }
 }
 

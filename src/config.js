@@ -162,6 +162,12 @@ export const LIGHTNING = {
   life: 0.35,             // seconds the arc stays visible
 };
 
+export const HP_GLOBE = {
+  dropChance: 0.05,       // 5% chance from enemy death
+  healAmount: 25,          // HP restored on pickup
+  bobSpeed: 3,             // radians/sec for bob animation
+};
+
 export const DASH = {
   speedMult: 3,           // speed multiplier during dash
   duration: 0.25,         // seconds of invincibility

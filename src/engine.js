@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS, SPITTER, ELITE, LIGHTNING } from './config.js';
+import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS, SPITTER, ELITE, LIGHTNING, HP_GLOBE } from './config.js';
 
 // Phones get lighter settings (fewer pixels, smaller shadows, less foliage).
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
@@ -37,7 +37,7 @@ function makePool(factory) {
 export const engine = {
   scene: null, camera: null, renderer: null, planet: null, player: null,
 
-  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], shards: [], bossHp: [], chainLightnings: [] },
+  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], shards: [], bossHp: [], chainLightnings: [], critTexts: [], hpGlobes: [] },
   _ambient: [],
   _bossHpPool: [],
   _bossEnrage: 0, // current boss enrage level (seconds)
@@ -168,6 +168,8 @@ export const engine = {
     this._pools.spitterProj = makePool(() => { const v = makeSpitterProj(); this.planet.add(v); v.visible = false; return v; });
     this._pools.shard = makePool(() => { const v = makeShieldShard(); this.planet.add(v); v.visible = false; return v; });
     this._pools.chainLightning = makePool(() => { const v = makeChainLightning(); this.scene.add(v); v.visible = false; return v; });
+    this._pools.hpGlobe = makePool(() => { const v = makeHpGlobe(); this.planet.add(v); v.visible = false; return v; });
+    this._pools.critText = makePool(() => { const v = makeCritText(); this.scene.add(v); v.visible = false; return v; });
   },
 
   spawnEnemyView(tmplIndex, isBoss = false, isElite = false) {
@@ -205,6 +207,15 @@ export const engine = {
   despawnProjectileView(v) { this._pools.proj.release(v); },
   spawnSpitterProjView() { return this._pools.spitterProj.acquire(); },
   despawnSpitterProjView(v) { this._pools.spitterProj.release(v); },
+  spawnHpGlobeView() { return this._pools.hpGlobe.acquire(); },
+  despawnHpGlobeView(v) { this._pools.hpGlobe.release(v); },
+  spawnCritText(pos) {
+    const s = this._pools.critText.acquire();
+    drawCritText(s);
+    s.position.copy(pos);
+    s.userData.vy = 2.0; s.userData.life = s.userData.maxLife = 0.8;
+    this._fx.critTexts.push(s);
+  },
 
   /* ── Effects (called by logic; engine animates & recycles) ── */
   spawnParticles(pos, color, count = 8) {
@@ -292,6 +303,8 @@ export const engine = {
   clearEntities(state) {
     for (const e of state.enemies) this.despawnEnemyView(e.view);
     for (const g of state.gems) this.despawnGemView(g.view);
+    for (const g of state.hpGlobes) this.despawnHpGlobeView(g.view);
+    state.hpGlobes.length = 0;
     for (const pr of state.projectiles) this.despawnProjectileView(pr.view);
     for (const p of state.spitterProjectiles) this.despawnSpitterProjView(p.view);
     state.spitterProjectiles.length = 0;
@@ -302,9 +315,11 @@ export const engine = {
     for (const sh of this._fx.shards) this._pools.shard.release(sh);
     for (const ml of this._fx.magnetLines) this._pools.magnetLine.release(ml);
     for (const cl of this._fx.chainLightnings) this._pools.chainLightning.release(cl);
+    for (const ct of this._fx.critTexts) this._pools.critText.release(ct);
     this._fx.particles.length = 0; this._fx.damage.length = 0;
     this._fx.pulses.length = 0; this._fx.stars.length = 0; this._fx.shards.length = 0;
     this._fx.magnetLines.length = 0; this._fx.chainLightnings.length = 0;
+    this._fx.critTexts.length = 0;
   },
 
   /* ── Camera angle (0 = low/cinematic, 1 = top-down) ──── */
@@ -374,6 +389,7 @@ export const engine = {
 
     this._syncEnemies(state, dt);
     this._syncGems(state);
+    this._syncHpGlobes(state);
     this._syncProjectiles(state);
     this._syncStars(state);
     this._syncShards(state);
@@ -531,6 +547,19 @@ export const engine = {
     }
   },
 
+  _syncHpGlobes(state) {
+    for (const g of state.hpGlobes) {
+      const v = g.view;
+      v.position.copy(g.localDir).multiplyScalar(PLANET_R);
+      v.quaternion.setFromUnitVectors(UP, g.localDir);
+      // Bob up and down
+      v.position.addScaledVector(g.localDir, Math.sin(g.bobTime) * 0.12);
+      // Pulse scale
+      const pulse = 1 + Math.sin(g.bobTime * 2) * 0.1;
+      v.scale.setScalar(pulse);
+    }
+  },
+
   _syncProjectiles(state) {
     for (const pr of state.projectiles) {
       const v = pr.view;
@@ -598,6 +627,12 @@ export const engine = {
       const cl = fx.chainLightnings[i]; cl.userData.life -= dt;
       if (cl.userData.life <= 0) { cl.visible = false; this._pools.chainLightning.release(cl); fx.chainLightnings.splice(i, 1); continue; }
       cl.material.opacity = (cl.userData.life / cl.userData.maxLife) * 0.9;
+    }
+    for (let i = fx.critTexts.length - 1; i >= 0; i--) {
+      const ct = fx.critTexts[i]; ct.userData.life -= dt;
+      if (ct.userData.life <= 0) { this._pools.critText.release(ct); fx.critTexts.splice(i, 1); continue; }
+      ct.position.y += ct.userData.vy * dt;
+      ct.material.opacity = ct.userData.life / ct.userData.maxLife;
     }
   },
 
@@ -789,6 +824,45 @@ function makeGem() {
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; g.add(ring);
   g.userData = { crystal, ring };
   return g;
+}
+
+function makeHpGlobe() {
+  // Green cross / plus shape — the universal health pickup symbol
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0x4caf50, emissive: 0x2e7d32, emissiveIntensity: 0.4 });
+  // Vertical bar
+  const vBar = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.5, 0.14), mat);
+  g.add(vBar);
+  // Horizontal bar
+  const hBar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.14), mat);
+  g.add(hBar);
+  // Glow sphere
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0x81c784, transparent: true, opacity: 0.3 }));
+  g.add(glow);
+  return g;
+}
+
+function makeCritText() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 96;
+  const tex = new THREE.CanvasTexture(canvas);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  s.scale.set(2.5, 1.0, 1);
+  s.userData = { canvas, ctx: canvas.getContext('2d'), tex };
+  return s;
+}
+
+function drawCritText(sprite) {
+  const { canvas, ctx, tex } = sprite.userData;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = 'bold 72px Nunito, sans-serif';
+  ctx.fillStyle = '#ffd700';
+  ctx.strokeStyle = '#b71c1c'; ctx.lineWidth = 6;
+  ctx.textAlign = 'center';
+  ctx.strokeText('CRIT!', 128, 72); ctx.fillText('CRIT!', 128, 72);
+  tex.needsUpdate = true;
+  sprite.material.opacity = 1;
 }
 
 function makeHeartProj() {

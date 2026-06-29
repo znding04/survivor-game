@@ -130,6 +130,13 @@ export const ui = {
     $('hp-label').textContent = `HP  ${Math.ceil(state.hp)} / ${state.maxHp}`;
     document.querySelector('#xp-bar .bar-fill').style.width = (state.xp / state.xpToNext * 100) + '%';
     $('xp-label').textContent = `XP — Lv ${state.level}`;
+    // XP bar glow pulse when near leveling up (>80%)
+    const xpBar = document.querySelector('#xp-bar');
+    if (state.xp / state.xpToNext > 0.8) {
+      xpBar.classList.add('glow');
+    } else {
+      xpBar.classList.remove('glow');
+    }
     const comboEl = $('hud-combo');
     if (state.combo > 1) {
       comboEl.textContent = `${state.combo}x combo!`;
