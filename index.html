@@ -64,6 +64,24 @@
     #danger-vignette.danger-3 { opacity: 0.55; animation: dangerPulse 0.5s ease-in-out infinite alternate; }
     @keyframes dangerPulse { from { opacity: 0.4; } to { opacity: 0.7; } }
 
+    /* ─── Kill Streak Announcement ─── */
+    #streak-announcement {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      pointer-events: none; z-index: 20;
+      font: bold 52px 'Trebuchet MS', Impact, sans-serif;
+      text-align: center; white-space: nowrap;
+      opacity: 0;
+      text-shadow: 0 0 20px rgba(255,200,0,0.9), 0 2px 8px rgba(0,0,0,0.7);
+      letter-spacing: 2px;
+    }
+    @keyframes streakPop {
+      0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(-4deg); }
+      15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2) rotate(2deg); }
+      30%  { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+      70%  { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9) rotate(2deg); }
+    }
+
     /* ─── HUD ─── */
     #hud {
       position: fixed; top: 0; left: 0; width: 100%;
@@ -402,6 +420,7 @@
 
 <div id="damage-flash"></div>
 <div id="danger-vignette"></div>
+<div id="streak-announcement"></div>
 
 <script type="importmap">
 {

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {
   PLANET_R, UP, ORBIT, HOMING, ENEMY_TEMPLATES, DIFFICULTY, LEVEL, UPGRADES, COMBO, BOSS, SPITTER,
-  RICOCHET, CRIT, SHIELD, ELITE, LIGHTNING, DASH, HP_GLOBE,
+  RICOCHET, CRIT, SHIELD, ELITE, LIGHTNING, DASH, HP_GLOBE, FREEZE, DUST, STREAK,
+  TURTLE, POISON, XP_BEAM,
 } from './config.js';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -82,15 +83,54 @@ export function update(state, dt, engine, move) {
     state.dash.cooldownTimer -= dt;
   }
 
+  // ── Pet Turtle ──
+  if (state.turtle.active) {
+    // Slerp turtle toward the player (target = player's local dir on sphere)
+    const turtleMoveStep = (TURTLE.speed / PLANET_R) * dt;
+    slerpToward(state.turtle.localDir, target, turtleMoveStep);
+    state.turtle.angle += dt * 1.5;
+
+    // Turtle attacks enemies within range
+    const turtleAngRange = TURTLE.range / PLANET_R;
+    for (const e of state.enemies) {
+      if (e.dying) continue;
+      const ang = angBetween(e.localDir, state.turtle.localDir);
+      if (ang < turtleAngRange) {
+        e.hp -= TURTLE.dps * dt;
+        e.hitTimer = 0.1;
+        e.hitFlash = 0.05;
+      }
+    }
+  }
+
   // ── Movement: rotate the planet beneath the fixed player ──
   _v.set(move.x, 0, move.z);
-  if (_v.lengthSq() > 0) {
+  const isMoving = _v.lengthSq() > 0;
+  if (isMoving) {
     _v.normalize();
     _axis.crossVectors(_v, UP).normalize();
     _q.setFromAxisAngle(_axis, (state.speed / PLANET_R) * dt);
     state.planetQuat.premultiply(_q);
     state.playerFace = Math.atan2(_v.x, _v.z);
+
+    // ── Footstep dust particles ──────────────────────────────────────────────
+    state.dustTimer -= dt;
+    if (state.dustTimer <= 0) {
+      state.dustTimer = DUST.spawnInterval;
+      const playerWorld = new THREE.Vector3(0, PLANET_R, 0);
+      for (let i = 0; i < DUST.particleCount; i++) {
+        const offset = (Math.random() - 0.5) * 1.2;
+        const angle = Math.random() * Math.PI * 2;
+        const dustPos = playerWorld.clone().add(
+          new THREE.Vector3(Math.cos(angle) * 0.6, -0.3 + Math.random() * 0.2, Math.sin(angle) * 0.6)
+        );
+        engine.spawnDustParticle(dustPos);
+      }
+    }
+  } else {
+    state.dustTimer = 0; // reset so dust starts immediately on next move
   }
+
   // Player's foot point (north pole) in planet-local space — every AI target.
   state.targetLocal.copy(UP).applyQuaternion(_q.copy(state.planetQuat).invert());
   const target = state.targetLocal;
@@ -179,11 +219,48 @@ export function update(state, dt, engine, move) {
     if (e.hitFlash > 0) e.hitFlash -= dt;
     if (e.hitTimer > 0) e.hitTimer -= dt;
 
+    // Freeze countdown & ice particles
+    if (e.frozen) {
+      e.frozenTimer -= dt;
+      if (e.frozenTimer <= 0) { e.frozen = false; e.frozenTimer = 0; }
+      // Ice particles while frozen (~8/second via timer accumulator)
+      if (!e._iceAcc) e._iceAcc = 0;
+      e._iceAcc += dt;
+      const iceInterval = 1 / 8;
+      while (e._iceAcc >= iceInterval) {
+        e._iceAcc -= iceInterval;
+        const wp = worldPos(e.localDir, state);
+        engine.spawnFreezeParticles(wp);
+      }
+    }
+
+    // Poison tick damage
+    if (e.poison && e.poison.active) {
+      e.poison.timer -= dt;
+      e.hp -= e.poison.damage * dt;
+      e.hitTimer = 0.1;
+      e.hitFlash = 0.05;
+      // Show poison damage number periodically
+      if (!e._poisonAcc) e._poisonAcc = 0;
+      e._poisonAcc += dt;
+      const poisonInterval = 0.5;
+      while (e._poisonAcc >= poisonInterval) {
+        e._poisonAcc -= poisonInterval;
+        const wp = worldPos(e.localDir, state);
+        engine.spawnPoisonParticles(wp);
+        engine.spawnDamageNumber(wp, Math.round(e.poison.damage * poisonInterval), 0x76ff03);
+      }
+      if (e.poison.timer <= 0) e.poison = null;
+    }
+
     if (e.dying) {
       e.deathTimer -= dt;
       if (e.deathTimer <= 0) { engine.despawnEnemyView(e.view); state.enemies.splice(i, 1); }
       continue;
     }
+
+    // Effective speed: reduced while frozen
+    const frozenMult = e.frozen ? FREEZE.speedMult : 1;
 
     // Spitter: maintain range and fire projectiles
     if (e.spitter && !e.dying) {
@@ -192,10 +269,10 @@ export function update(state, dt, engine, move) {
 
       if (surfDist < SPITTER.range - 1) {
         // Too close — back up
-        slerpToward(e.localDir, target, -(e.speed / PLANET_R) * dt);
+        slerpToward(e.localDir, target, -(e.speed * frozenMult / PLANET_R) * dt);
       } else if (surfDist > SPITTER.range + 1) {
         // Too far — approach
-        slerpToward(e.localDir, target, (e.speed / PLANET_R) * dt);
+        slerpToward(e.localDir, target, (e.speed * frozenMult / PLANET_R) * dt);
       }
       // else in range — hold position
 
@@ -226,7 +303,7 @@ export function update(state, dt, engine, move) {
         });
       }
     } else if (!e.dying) {
-      slerpToward(e.localDir, target, (e.speed / PLANET_R) * dt);
+      slerpToward(e.localDir, target, (e.speed * frozenMult / PLANET_R) * dt);
       e.bobTime += dt * 4;
 
       // Contact damage
@@ -250,6 +327,7 @@ export function update(state, dt, engine, move) {
         engine.spawnParticles(w, 0xffd54f, BOSS.deathParticlesGold);
         engine.spawnParticles(w, 0xffb3d9, BOSS.deathParticlesPink);
         spawnGem(state, engine, e.localDir, BOSS.gemValueMult);
+        triggerStreakAnnouncement(state, engine);
       } else if (e.elite) {
         state.kills++;
         state.combo++;
@@ -261,6 +339,8 @@ export function update(state, dt, engine, move) {
         spawnGem(state, engine, e.localDir, ELITE.gemValueMult);
         // Chain lightning from elite death
         triggerChainLightning(state, engine, e, e.maxHp * 0.3, w);
+        triggerPoison(state, engine, e, w);
+        triggerStreakAnnouncement(state, engine);
       } else {
         state.kills++;
         state.combo++;
@@ -277,6 +357,8 @@ export function update(state, dt, engine, move) {
         }
         // Chain lightning from normal kill
         triggerChainLightning(state, engine, e, DIFFICULTY.enemyHpBase * hpScale * 0.3, w);
+        triggerPoison(state, engine, e, w);
+        triggerStreakAnnouncement(state, engine);
       }
     }
   }
@@ -332,6 +414,23 @@ export function update(state, dt, engine, move) {
     }
   }
 
+  // ── XP Beam: draw lines from gems to player when 3+ gems nearby ──
+  state.xpBeamLines.length = 0;
+  if (state.gems.length >= XP_BEAM.requiredGems) {
+    const angRange = XP_BEAM.range / PLANET_R;
+    const playerWorld = new THREE.Vector3(0, PLANET_R, 0);
+    let count = 0;
+    for (const g of state.gems) {
+      if (count >= XP_BEAM.poolSize) break;
+      const d = angBetween(g.localDir, target);
+      if (d <= angRange) {
+        const gemWorld = g.localDir.clone().multiplyScalar(PLANET_R).applyQuaternion(state.planetQuat);
+        state.xpBeamLines.push({ from: gemWorld.clone(), to: playerWorld.clone(), life: 0.3 });
+        count++;
+      }
+    }
+  }
+
   // ── HP Globes ──
   for (let i = state.hpGlobes.length - 1; i >= 0; i--) {
     const g = state.hpGlobes[i];
@@ -373,6 +472,23 @@ function triggerChainLightning(state, engine, victim, damage, worldPos) {
   }
 }
 
+/* ═══ Poison ════════════════════════════════════════════════ */
+// On enemy death, roll chance to poison a nearby enemy.
+function triggerPoison(state, engine, victim, worldPos) {
+  if (Math.random() >= POISON.chance) return;
+  const angRange = POISON.range / PLANET_R;
+  let best = null, bestAng = Infinity;
+  for (const e of state.enemies) {
+    if (e === victim || e.dying) continue;
+    const ang = angBetween(victim.localDir, e.localDir);
+    if (ang < bestAng && ang <= angRange) { bestAng = ang; best = e; }
+  }
+  if (best) {
+    best.poison = { active: true, timer: POISON.duration, damage: POISON.dps };
+    engine.spawnParticles(worldPos, POISON.particleColor, POISON.particleCount);
+  }
+}
+
 /* ═══ Spawning ════════════════════════════════════════════════ */
 function spawnEnemy(state, engine, speed, hpScale, t) {
   // Spitters stay away early, then grow as a share of spawns over time.
@@ -403,6 +519,7 @@ function spawnEnemy(state, engine, speed, hpScale, t) {
     speed: speed * (0.8 + Math.random() * 0.4),
     bobTime: Math.random() * Math.PI * 2,
     dying: false, deathTimer: 0, hitTimer: 0, hitFlash: 0,
+    frozen: false, frozenTimer: 0,
     view: engine.spawnEnemyView(tmplIndex),
   });
 }
@@ -419,6 +536,7 @@ function spawnSpitter(state, engine, speed, hpScale) {
     dying: false, deathTimer: 0, hitTimer: 0, hitFlash: 0,
     spitter: true,
     fireTimer: SPITTER.fireInterval * 0.5, // stagger initial fire
+    frozen: false, frozenTimer: 0,
     view: engine.spawnEnemyView(4), // template index 4 = spitter template
   });
 }
@@ -437,6 +555,7 @@ function spawnElite(state, engine, speed, hpScale) {
     bobTime: Math.random() * Math.PI * 2,
     dying: false, deathTimer: 0, hitTimer: 0, hitFlash: 0,
     elite: true,
+    frozen: false, frozenTimer: 0,
     view: engine.spawnEnemyView(tmplIndex, false, true), // third arg = isElite
   });
   const w = worldPos(localDir, state);
@@ -456,6 +575,7 @@ function spawnBoss(state, engine, speed, hpScale) {
     bobTime: Math.random() * Math.PI * 2,
     dying: false, deathTimer: 0, hitTimer: 0, hitFlash: 0,
     boss: true,
+    frozen: false, frozenTimer: 0,
     view: engine.spawnEnemyView(tmplIndex, true),
   };
   state.enemies.push(enemy);
@@ -513,6 +633,13 @@ function stepPulse(state, dt, engine, target) {
     if (angBetween(e.localDir, target) * PLANET_R <= state.pulse.range) {
       damageEnemy(state, engine, e, state.pulse.damage);
       hit = true;
+      // Freeze chance — roll after each hit
+      if (Math.random() < FREEZE.chance) {
+        e.frozen = true;
+        e.frozenTimer = FREEZE.duration;
+        const wp = worldPos(e.localDir, state);
+        engine.spawnFreezeParticles(wp);
+      }
     }
   }
   if (hit) engine.spawnPulse(state.pulse.range);
@@ -688,4 +815,17 @@ export function pickUpgradeChoices(state) {
 export function applyUpgrade(state, upgrade) {
   state.upgrades[upgrade.id] = (state.upgrades[upgrade.id] || 0) + 1;
   upgrade.apply(state);
+}
+
+/* ═══ Kill Streak Announcement ════════════════════════════════ */
+function triggerStreakAnnouncement(state, engine) {
+  const combo = state.combo;
+  for (const milestone of STREAK.milestones) {
+    if (combo >= milestone && state.lastStreakMilestone < milestone) {
+      state.lastStreakMilestone = milestone;
+      state.streakTimer = STREAK.displayTime;
+      engine.showStreak(combo);
+      break;
+    }
+  }
 }

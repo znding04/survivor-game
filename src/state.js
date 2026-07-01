@@ -84,12 +84,29 @@ export function createState() {
     dash: { timer: 0, cooldownTimer: DASH.cooldown, active: false },
     wantsDash: false,
 
+    // Footstep dust
+    dustTimer: 0,
+
+    // Streak announcement display
+    streakTimer: 0,
+
+    // Streak milestone tracking (combo milestones announced)
+    lastStreakMilestone: 0,
+
     // Chain lightning arcs (world-space from/to points + lifetime)
     chainLightnings: [],
+
+    // Pet turtle
+    turtle: { active: false, localDir: new THREE.Vector3(0, 1, 0), angle: 0 },
+
+    // XP beam lines (world-space from/to + lifetime)
+    xpBeamLines: [],
   };
 }
 
 // Reset an existing state object in place (keeps the same reference).
 export function resetState(s) {
   Object.assign(s, createState(), { running: true });
+  s.dustTimer = 0;
+  s.streakTimer = 0;
 }

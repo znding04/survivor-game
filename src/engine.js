@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS, SPITTER, ELITE, LIGHTNING, HP_GLOBE } from './config.js';
+import { PLANET_R, UP, CAMERA, PLAYER, ENEMY_TEMPLATES, MAGNET_LINE, BOSS, SPITTER, ELITE, LIGHTNING, HP_GLOBE, FREEZE, TURTLE, POISON, XP_BEAM } from './config.js';
 
 // Phones get lighter settings (fewer pixels, smaller shadows, less foliage).
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
@@ -37,7 +37,7 @@ function makePool(factory) {
 export const engine = {
   scene: null, camera: null, renderer: null, planet: null, player: null,
 
-  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], shards: [], bossHp: [], chainLightnings: [], critTexts: [], hpGlobes: [] },
+  _pools: {}, _fx: { particles: [], damage: [], pulses: [], stars: [], magnetLines: [], shards: [], bossHp: [], chainLightnings: [], critTexts: [], hpGlobes: [], xpBeamLines: [], turtle: null },
   _ambient: [],
   _bossHpPool: [],
   _bossEnrage: 0, // current boss enrage level (seconds)
@@ -170,6 +170,7 @@ export const engine = {
     this._pools.chainLightning = makePool(() => { const v = makeChainLightning(); this.scene.add(v); v.visible = false; return v; });
     this._pools.hpGlobe = makePool(() => { const v = makeHpGlobe(); this.planet.add(v); v.visible = false; return v; });
     this._pools.critText = makePool(() => { const v = makeCritText(); this.scene.add(v); v.visible = false; return v; });
+    this._pools.xpBeamLine = makePool(() => { const v = makeXpBeamLine(); this.scene.add(v); v.visible = false; return v; });
   },
 
   spawnEnemyView(tmplIndex, isBoss = false, isElite = false) {
@@ -242,12 +243,58 @@ export const engine = {
     p.userData.life = p.userData.maxLife = 1.4 + Math.random();
     this._fx.particles.push(p);
   },
+  spawnDustParticle(pos) {
+    const p = this._pools.particle.acquire();
+    p.material.color.setHex(0xc4a882); p.material.opacity = 0.6;
+    const s = 0.08 + Math.random() * 0.08; p.scale.setScalar(s / 0.1);
+    p.position.copy(pos);
+    const a = Math.random() * Math.PI * 2, sp = 0.5 + Math.random() * 1.5;
+    p.userData.vx = Math.cos(a) * sp; p.userData.vz = Math.sin(a) * sp; p.userData.vy = 0.2 + Math.random() * 0.5;
+    p.userData.gravity = false;
+    p.userData.life = p.userData.maxLife = 0.4 + Math.random() * 0.3;
+    this._fx.particles.push(p);
+  },
+  spawnFreezeParticles(pos) {
+    for (let i = 0; i < FREEZE.particleCount; i++) {
+      const p = this._pools.particle.acquire();
+      p.material.color.setHex(0xaaddff); p.material.opacity = 0.8;
+      const s = 0.06 + Math.random() * 0.06; p.scale.setScalar(s / 0.1);
+      p.position.copy(pos);
+      const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 2;
+      p.userData.vx = Math.cos(a) * sp; p.userData.vy = 2 + Math.random() * 2; p.userData.vz = Math.sin(a) * sp;
+      p.userData.gravity = true;
+      p.userData.life = p.userData.maxLife = 0.5 + Math.random() * 0.5;
+      this._fx.particles.push(p);
+    }
+  },
+  spawnPoisonParticles(pos) {
+    for (let i = 0; i < POISON.particleCount; i++) {
+      const p = this._pools.particle.acquire();
+      p.material.color.setHex(POISON.particleColor); p.material.opacity = 0.85;
+      const s = 0.05 + Math.random() * 0.05; p.scale.setScalar(s / 0.1);
+      p.position.copy(pos);
+      const a = Math.random() * Math.PI * 2, sp = 0.8 + Math.random() * 1.5;
+      p.userData.vx = Math.cos(a) * sp; p.userData.vy = 1.5 + Math.random() * 2; p.userData.vz = Math.sin(a) * sp;
+      p.userData.gravity = false;
+      p.userData.life = p.userData.maxLife = 0.6 + Math.random() * 0.4;
+      this._fx.particles.push(p);
+    }
+  },
   spawnDamageNumber(pos, dmg, colorHex = 0xffd54f) {
     const s = this._pools.damage.acquire();
     drawDamage(s, Math.round(dmg), colorHex);
     s.position.copy(pos); s.position.y += 1.4;
     s.userData.vy = 2.5; s.userData.life = s.userData.maxLife = 0.8;
     this._fx.damage.push(s);
+  },
+  showStreak(combo) {
+    const el = document.getElementById('streak-announcement');
+    if (!el) return;
+    el.textContent = combo + ' KILL STREAK!';
+    el.style.color = combo >= 50 ? '#ff4444' : combo >= 20 ? '#ff8800' : '#ffd700';
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'streakPop 1.4s ease-out forwards';
   },
   spawnPulse(range) {
     const r = this._pools.pulse.acquire();
@@ -320,6 +367,9 @@ export const engine = {
     this._fx.pulses.length = 0; this._fx.stars.length = 0; this._fx.shards.length = 0;
     this._fx.magnetLines.length = 0; this._fx.chainLightnings.length = 0;
     this._fx.critTexts.length = 0;
+    if (this._fx.turtle) this._fx.turtle.visible = false;
+    for (const l of this._fx.xpBeamLines) this._pools.xpBeamLine.release(l);
+    this._fx.xpBeamLines.length = 0;
   },
 
   /* ── Camera angle (0 = low/cinematic, 1 = top-down) ──── */
@@ -393,6 +443,8 @@ export const engine = {
     this._syncProjectiles(state);
     this._syncStars(state);
     this._syncShards(state);
+    this._syncTurtle(state);
+    this._syncXpBeam(state);
     this._updateEffects(dt);
     this._updateAmbient(dt);
 
@@ -597,6 +649,46 @@ export const engine = {
     }
   },
 
+  _syncTurtle(state) {
+    if (!state.turtle.active) {
+      if (this._fx.turtle) { this._fx.turtle.visible = false; }
+      return;
+    }
+    if (!this._fx.turtle) {
+      this._fx.turtle = makeTurtle();
+      this.scene.add(this._fx.turtle);
+    }
+    const t = this._fx.turtle;
+    t.visible = true;
+    // Bob animation
+    const bob = Math.sin(state.time * TURTLE.bobSpeed) * TURTLE.bobAmount;
+    const worldPos = state.turtle.localDir.clone().multiplyScalar(PLANET_R + bob);
+    t.position.copy(worldPos);
+    // Orient turtle on sphere surface
+    const tangent = new THREE.Vector3().crossVectors(state.turtle.localDir, new THREE.Vector3(0, 1, 0)).normalize();
+    if (tangent.lengthSq() < 1e-6) tangent.set(1, 0, 0);
+    orientOnSphere(t, state.turtle.localDir, tangent);
+    t.scale.setScalar(TURTLE.scale);
+  },
+
+  _syncXpBeam(state) {
+    // Release previous frame's beam lines
+    for (const l of this._fx.xpBeamLines) this._pools.xpBeamLine.release(l);
+    this._fx.xpBeamLines.length = 0;
+    for (const line of state.xpBeamLines) {
+      const l = this._pools.xpBeamLine.acquire();
+      const positions = l.geometry.attributes.position;
+      positions.setXYZ(0, line.from.x, line.from.y, line.from.z);
+      positions.setXYZ(1, line.to.x, line.to.y, line.to.z);
+      positions.needsUpdate = true;
+      l.userData.life = line.life;
+      l.userData.maxLife = line.life;
+      l.material.opacity = XP_BEAM.opacity;
+      l.visible = true;
+      this._fx.xpBeamLines.push(l);
+    }
+  },
+
   _updateEffects(dt) {
     const fx = this._fx;
     for (let i = fx.particles.length - 1; i >= 0; i--) {
@@ -633,6 +725,11 @@ export const engine = {
       if (ct.userData.life <= 0) { this._pools.critText.release(ct); fx.critTexts.splice(i, 1); continue; }
       ct.position.y += ct.userData.vy * dt;
       ct.material.opacity = ct.userData.life / ct.userData.maxLife;
+    }
+    for (let i = fx.xpBeamLines.length - 1; i >= 0; i--) {
+      const l = fx.xpBeamLines[i]; l.userData.life -= dt;
+      if (l.userData.life <= 0) { l.visible = false; this._pools.xpBeamLine.release(l); fx.xpBeamLines.splice(i, 1); continue; }
+      l.material.opacity = (l.userData.life / l.userData.maxLife) * XP_BEAM.opacity;
     }
   },
 
@@ -1004,5 +1101,61 @@ function makeChainLightning() {
   geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
   return new THREE.Line(geo, new THREE.LineBasicMaterial({
     color: 0x80d8ff, transparent: true, opacity: 1,
+  }));
+}
+
+function makeTurtle() {
+  const g = new THREE.Group();
+  // Shell (domed top)
+  const shell = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshLambertMaterial({ color: TURTLE.shellColor })
+  );
+  shell.castShadow = true; g.add(shell);
+  // Shell pattern (hex lines)
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.48, 0.04, 6, 16),
+    new THREE.MeshLambertMaterial({ color: 0x6d4c41 })
+  );
+  rim.rotation.x = Math.PI / 2; rim.position.y = 0.05; g.add(rim);
+  // Body (under shell)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.38, 10, 8),
+    new THREE.MeshLambertMaterial({ color: TURTLE.skinColor })
+  );
+  body.position.y = -0.1; body.scale.y = 0.7; g.add(body);
+  // Head
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 8, 8),
+    new THREE.MeshLambertMaterial({ color: TURTLE.skinColor })
+  );
+  head.position.set(0, 0, 0.42); g.add(head);
+  // Eyes
+  const eyeMat = new THREE.MeshLambertMaterial({ color: TURTLE.eyeColor });
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), eyeMat);
+    eye.position.set(side * 0.1, 0.08, 0.55); g.add(eye);
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.025, 4, 4),
+      new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    shine.position.set(side * 0.1 + 0.03, 0.11, 0.59); g.add(shine);
+  }
+  // Feet
+  const footMat = new THREE.MeshLambertMaterial({ color: TURTLE.skinColor });
+  const footGeo = new THREE.SphereGeometry(0.12, 6, 6);
+  for (const [fx, fz] of [[-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]]) {
+    const foot = new THREE.Mesh(footGeo, footMat);
+    foot.position.set(fx, -0.18, fz); foot.scale.y = 0.6; g.add(foot);
+  }
+  // Tail
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), footMat);
+  tail.position.set(0, -0.15, -0.35); tail.scale.y = 0.7; g.add(tail);
+  return g;
+}
+
+function makeXpBeamLine() {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+  return new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color: XP_BEAM.lineColor, transparent: true, opacity: XP_BEAM.opacity,
   }));
 }

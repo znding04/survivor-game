@@ -162,6 +162,27 @@ export const LIGHTNING = {
   life: 0.35,             // seconds the arc stays visible
 };
 
+export const FREEZE = {
+  chance: 0.20,           // 20% chance on pulse hit
+  duration: 1.5,          // seconds frozen
+  speedMult: 0.2,         // frozen enemies move at 20% speed
+  particleCount: 6,       // ice particles on freeze
+};
+
+export const DUST = {
+  spawnInterval: 0.08,   // seconds between dust spawns while moving
+  particleCount: 2,       // particles per spawn
+  color: 0xd4c4a8,       // light tan
+  life: 0.6,             // seconds
+  speedMin: 0.5,         // upward drift min
+  speedMax: 1.5,         // upward drift max
+};
+
+export const STREAK = {
+  milestones: [5, 10, 15, 20, 30, 50],  // combo thresholds that trigger announcement
+  displayTime: 1.5,     // seconds to show streak text
+};
+
 export const HP_GLOBE = {
   dropChance: 0.05,       // 5% chance from enemy death
   healAmount: 25,          // HP restored on pickup
@@ -172,6 +193,36 @@ export const DASH = {
   speedMult: 3,           // speed multiplier during dash
   duration: 0.25,         // seconds of invincibility
   cooldown: 8,            // seconds between dashes
+};
+
+export const XP_BEAM = {
+  requiredGems: 3,    // min nearby gems to activate
+  range: 5,            // surface units — gems within this range count
+  lineColor: 0xffd700,
+  opacity: 0.4,
+  poolSize: 6,
+};
+
+export const TURTLE = {
+  dps: 8,              // damage per second to nearby enemies
+  range: 3,            // surface units — enemies within range take damage
+  speed: 4,            // surface units/sec — turtle follows player
+  bobSpeed: 2,         // bob animation speed
+  bobAmount: 0.08,     // bob amplitude
+  scale: 0.5,          // turtle is smaller than enemies
+  shellColor: 0x8d6e63,
+  skinColor: 0x558b2f,
+  eyeColor: 0x1b5e20,
+  poolSize: 1,
+};
+
+export const POISON = {
+  chance: 0.15,         // 15% chance on enemy death to apply poison
+  duration: 3.0,        // seconds
+  dps: 12,              // damage per second
+  range: 4,             // surface units — max distance to find nearby enemy
+  particleColor: 0x76ff03,
+  particleCount: 8,
 };
 
 export const WEAPON_SWITCH_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'];
@@ -308,5 +359,11 @@ export const UPGRADES = [
     desc: () => '+25% faster shield recharge',
     available: (s) => s.shield.level > 0,
     apply: (s) => { s.shield.rechargeTime *= 0.75; },
+  },
+  {
+    id: 'turtle', icon: '🐢', name: 'Pet Turtle',
+    desc: () => 'A loyal turtle attacks nearby foes',
+    available: () => true,
+    apply: (s) => { s.turtle.active = true; },
   },
 ];
